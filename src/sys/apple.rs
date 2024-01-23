@@ -3,7 +3,7 @@ use std::mem::MaybeUninit;
 use block2::ConcreteBlock;
 use icrate::{
     objc2::rc::Id,
-    Foundation::ns_string,
+    Foundation::{ns_string, NSString},
     LocalAuthentication::{
         LAContext, LAPolicy, LAPolicyDeviceOwnerAuthentication,
         LAPolicyDeviceOwnerAuthenticationWithBiometrics,
@@ -82,7 +82,7 @@ impl Context {
         }
     }
 
-    fn authenticate_inner(&self, policy: &Policy) -> oneshot::Receiver<bool> {
+    fn authenticate_inner(&self, message: &str, policy: &Policy) -> oneshot::Receiver<bool> {
         unsafe { self.inner.canEvaluatePolicy_error(policy.inner) }.unwrap();
 
         let (tx, rx) = oneshot::channel();
@@ -99,7 +99,7 @@ impl Context {
         unsafe {
             self.inner.evaluatePolicy_localizedReason_reply(
                 policy.inner,
-                ns_string!("login"),
+                &NSString::from_str(message),
                 &block,
             )
         };
@@ -107,13 +107,15 @@ impl Context {
         rx
     }
 
-    pub(crate) async fn authenticate(&self, policy: &Policy) -> bool {
+    pub(crate) async fn authenticate(&self, message: &str, policy: &Policy) -> bool {
         // The callback should always execute and hence a message will always be sent.
-        self.authenticate_inner(policy).await.unwrap()
+        self.authenticate_inner(message, policy).await.unwrap()
     }
 
-    pub(crate) fn blocking_authenticate(&self, policy: &Policy) -> bool {
+    pub(crate) fn blocking_authenticate(&self, message: &str, policy: &Policy) -> bool {
         // The callback should always execute and hence a message will always be sent.
-        self.authenticate_inner(policy).blocking_recv().unwrap()
+        self.authenticate_inner(message, policy)
+            .blocking_recv()
+            .unwrap()
     }
 }

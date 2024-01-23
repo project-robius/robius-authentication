@@ -155,12 +155,12 @@ impl Context {
     ///
     /// Returns whether the authentication was successful.
     #[inline]
-    pub async fn authenticate(&self, policy: &Policy) -> bool {
-        self.inner.authenticate(&policy.inner).await
+    pub async fn authenticate(&self, message: &str, policy: &Policy) -> bool {
+        self.inner.authenticate(message, &policy.inner).await
     }
 
     #[inline]
-    pub fn blocking_authenticate(&self, policy: &Policy) -> bool {
-        self.inner.blocking_authenticate(&policy.inner)
+    pub fn blocking_authenticate(&self, message: &str, policy: &Policy) -> bool {
+        self.inner.blocking_authenticate(message, &policy.inner)
     }
 }

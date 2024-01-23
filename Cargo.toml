@@ -6,6 +6,22 @@ edition = "2021"
 [dependencies]
 cfg-if = "1.0.0"
 
+[target.'cfg(target_os = "windows")'.dependencies.windows]
+version = "0.52.0"
+features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_NetworkManagement",
+    "Win32_NetworkManagement_NetManagement",
+    "Win32_Security",
+    "Win32_Security_Credentials",
+    "Win32_System",
+    "Win32_System_WindowsProgramming",
+    "Win32_Security_Authentication_Identity",
+    "Security_Credentials_UI",
+    "Foundation",
+]
+
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies.block2]
 version = "0.4.0"
 
@@ -16,5 +32,10 @@ features = ["sync"]
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies.icrate]
 verision = "0.1.0"
-features = ["Foundation_NSError", "Foundation_NSString", "LocalAuthentication", "LocalAuthentication_LAContext"]
+features = [
+    "Foundation_NSError",
+    "Foundation_NSString",
+    "LocalAuthentication",
+    "LocalAuthentication_LAContext"
+]
 

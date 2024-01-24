@@ -1,6 +1,6 @@
 #![feature(const_option)]
 
-use robius_authentication::{BiometricStrength, Context, Policy, PolicyBuilder};
+use robius_authentication::{blocking_authenticate, BiometricStrength, Policy, PolicyBuilder};
 
 fn main() {
     const POLICY: Policy = PolicyBuilder::new()
@@ -10,12 +10,7 @@ fn main() {
         .build()
         .unwrap();
 
-    let context = Context::new();
-
-    if context
-        .blocking_authenticate("verify your identity", &POLICY)
-        .is_ok()
-    {
+    if blocking_authenticate("verify your identity", &POLICY).is_ok() {
         println!("Authorized");
     } else {
         println!("Unauthorized");

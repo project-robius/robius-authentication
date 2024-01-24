@@ -2,7 +2,6 @@ use std::mem::MaybeUninit;
 
 use block2::ConcreteBlock;
 use icrate::{
-    objc2::rc::Id,
     Foundation::{NSError, NSString},
     LocalAuthentication::{
         LAContext, LAErrorAppCancel, LAErrorAuthenticationFailed, LAErrorBiometryDisconnected,
@@ -75,75 +74,63 @@ pub struct Policy {
     inner: LAPolicy,
 }
 
-pub struct Context {
-    inner: Id<LAContext>,
+pub(crate) async fn authenticate(message: &str, policy: &Policy) -> Result<()> {
+    // The callback should always execute and hence a message will always be sent.
+    authenticate_inner(message, policy).await.unwrap()
 }
 
-impl Context {
-    pub(crate) fn new() -> Self {
-        Self {
-            inner: unsafe { LAContext::new() },
-        }
-    }
+pub(crate) fn blocking_authenticate(message: &str, policy: &Policy) -> Result<()> {
+    // The callback should always execute and hence a message will always be sent.
+    authenticate_inner(message, policy).blocking_recv().unwrap()
+}
 
-    fn authenticate_inner(&self, message: &str, policy: &Policy) -> oneshot::Receiver<Result<()>> {
-        let (tx, rx) = oneshot::channel();
-        let unsafe_tx = MaybeUninit::new(tx);
+fn authenticate_inner(message: &str, policy: &Policy) -> oneshot::Receiver<Result<()>> {
+    let (tx, rx) = oneshot::channel();
+    let unsafe_tx = MaybeUninit::new(tx);
 
-        let block = ConcreteBlock::new(move |is_success, error: *mut NSError| {
-            // SAFETY: The callback is only executed once.
-            let tx = unsafe { unsafe_tx.assume_init_read() };
-            let _ = if bool::from(is_success) {
-                tx.send(Ok(()))
-            } else {
-                let code = unsafe { &*error }.code();
-                #[allow(non_upper_case_globals)]
-                let error = match code {
-                    LAErrorAppCancel => Error::AppCanceled,
-                    LAErrorAuthenticationFailed => Error::Authentication,
-                    LAErrorBiometryDisconnected => Error::BiometryDisconnected,
-                    LAErrorBiometryLockout => Error::Exhausted,
-                    // NOTE: This is triggered when access to biometrics is denied.
-                    LAErrorBiometryNotAvailable => Error::Unavailable,
-                    LAErrorBiometryNotEnrolled => Error::NotEnrolled,
-                    LAErrorBiometryNotPaired => Error::NotPaired,
-                    // This error shouldn't occur, because we never invalidate the context.
-                    LAErrorInvalidContext => Error::Unknown,
-                    LAErrorInvalidDimensions => Error::InvalidDimensions,
-                    LAErrorNotInteractive => Error::NotInteractive,
-                    LAErrorPasscodeNotSet => Error::PasscodeNotSet,
-                    LAErrorSystemCancel => Error::SystemCanceled,
-                    LAErrorUserCancel => Error::UserCanceled,
-                    // TODO
-                    LAErrorUserFallback => Error::Unknown,
-                    LAErrorWatchNotAvailable => Error::WatchNotAvailable,
-                    _ => Error::Unknown,
-                };
-                tx.send(Err(error))
+    let block = ConcreteBlock::new(move |is_success, error: *mut NSError| {
+        // SAFETY: The callback is only executed once.
+        let tx = unsafe { unsafe_tx.assume_init_read() };
+        let _ = if bool::from(is_success) {
+            tx.send(Ok(()))
+        } else {
+            let code = unsafe { &*error }.code();
+            #[allow(non_upper_case_globals)]
+            let error = match code {
+                LAErrorAppCancel => Error::AppCanceled,
+                LAErrorAuthenticationFailed => Error::Authentication,
+                LAErrorBiometryDisconnected => Error::BiometryDisconnected,
+                LAErrorBiometryLockout => Error::Exhausted,
+                // NOTE: This is triggered when access to biometrics is denied.
+                LAErrorBiometryNotAvailable => Error::Unavailable,
+                LAErrorBiometryNotEnrolled => Error::NotEnrolled,
+                LAErrorBiometryNotPaired => Error::NotPaired,
+                // This error shouldn't occur, because we never invalidate the context.
+                LAErrorInvalidContext => Error::Unknown,
+                LAErrorInvalidDimensions => Error::InvalidDimensions,
+                LAErrorNotInteractive => Error::NotInteractive,
+                LAErrorPasscodeNotSet => Error::PasscodeNotSet,
+                LAErrorSystemCancel => Error::SystemCanceled,
+                LAErrorUserCancel => Error::UserCanceled,
+                // TODO
+                LAErrorUserFallback => Error::Unknown,
+                LAErrorWatchNotAvailable => Error::WatchNotAvailable,
+                _ => Error::Unknown,
             };
-        })
-        .copy();
-
-        unsafe {
-            self.inner.evaluatePolicy_localizedReason_reply(
-                policy.inner,
-                &NSString::from_str(message),
-                &block,
-            )
+            tx.send(Err(error))
         };
+    })
+    .copy();
 
-        rx
-    }
+    let context = unsafe { LAContext::new() };
 
-    pub(crate) async fn authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
-        // The callback should always execute and hence a message will always be sent.
-        self.authenticate_inner(message, policy).await.unwrap()
-    }
+    unsafe {
+        context.evaluatePolicy_localizedReason_reply(
+            policy.inner,
+            &NSString::from_str(message),
+            &block,
+        )
+    };
 
-    pub(crate) fn blocking_authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
-        // The callback should always execute and hence a message will always be sent.
-        self.authenticate_inner(message, policy)
-            .blocking_recv()
-            .unwrap()
-    }
+    rx
 }

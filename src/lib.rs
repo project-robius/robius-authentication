@@ -12,8 +12,6 @@ mod sys;
 
 pub use error::{Error, Result};
 
-// TODO: Remove contexts?
-
 /// A biometric strength class.
 ///
 /// This only has an effect on Android. On other targets, any biometric strength
@@ -57,7 +55,7 @@ impl PolicyBuilder {
     /// ```
     /// #![feature(const_option)]
     ///
-    /// use robius_authentication::{BiometricStrength, Policy, PolicyBuilder};
+    /// use robius_authentication::{blocking_authenticate, BiometricStrength, Policy, PolicyBuilder};
     ///
     /// const POLICY: Policy = PolicyBuilder::new()
     ///     .biometrics(Some(BiometricStrength::Strong))
@@ -65,7 +63,7 @@ impl PolicyBuilder {
     ///     .expect("invalid context configuration");
     ///
     /// // Authenticates with biometrics.
-    /// // context.authenticate_sync();
+    /// blocking_authenticate("login", &POLICY)?;
     /// ```
     #[inline]
     pub const fn biometrics(self, strength: Option<BiometricStrength>) -> Self {
@@ -115,70 +113,15 @@ pub struct Policy {
     inner: sys::Policy,
 }
 
-/// An authentication context.
+/// Asynchronously authenticate a policy.
 ///
-/// A program should have one global authentication context, that can be used to
-/// authenticate different policies.
-///
-/// # Usage
-///
-/// ```
-/// #![feature(const_option)]
-///
-/// use robius_authentication::{BiometricStrength, Context, Policy, PolicyBuilder};
-///
-/// const POLICY_A: Policy = PolicyBuilder::new()
-///     .biometrics(Some(BiometricStrength::Strong))
-///     .password(false)
-///     .watch(false)
-///     .build()
-///     .unwrap();
-///
-/// const POLICY_B: Policy = PolicyBuilder::new()
-///     .biometrics(Some(BiometricStrength::Strong))
-///     .password(true)
-///     .watch(true)
-///     .build()
-///     .unwrap();
-///
-/// let context = Context::new();
-///
-/// context
-///     .blocking_authenticate("reason", &POLICY_A)
-///     .expect("failed to authenticate policy A");
-/// context
-///     .blocking_authenticate("reason", &POLICY_B)
-///     .expect("failed to authenticate policy B");
-/// ```
-pub struct Context {
-    inner: sys::Context,
+/// Returns whether the authentication was successful.
+#[inline]
+pub async fn authenticate(message: &str, policy: &Policy) -> Result<()> {
+    sys::authenticate(message, &policy.inner).await
 }
 
-impl Default for Context {
-    #[inline]
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Context {
-    #[inline]
-    pub fn new() -> Self {
-        Self {
-            inner: sys::Context::new(),
-        }
-    }
-
-    /// Asynchronously authenticate a policy.
-    ///
-    /// Returns whether the authentication was successful.
-    #[inline]
-    pub async fn authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
-        self.inner.authenticate(message, &policy.inner).await
-    }
-
-    #[inline]
-    pub fn blocking_authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
-        self.inner.blocking_authenticate(message, &policy.inner)
-    }
+#[inline]
+pub fn blocking_authenticate(message: &str, policy: &Policy) -> Result<()> {
+    sys::blocking_authenticate(message, &policy.inner)
 }

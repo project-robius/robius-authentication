@@ -26,7 +26,7 @@ default-features = false
 features = ["sync"]
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies.icrate]
-verision = "0.1.0"
+version = "0.1.0"
 features = [
     "Foundation_NSError",
     "Foundation_NSString",

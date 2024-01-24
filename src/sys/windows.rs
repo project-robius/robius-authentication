@@ -28,9 +28,9 @@ impl PolicyBuilder {
         Self
     }
 
-    // pub(crate) const fn wrist_detection(self, _: bool) -> Self {
-    //  Self
-    // }
+    pub(crate) const fn wrist_detection(self, _: bool) -> Self {
+        Self
+    }
 
     pub(crate) const fn build(self) -> Option<Policy> {
         // TODO: Fix

@@ -17,15 +17,15 @@ features = [
     "Security_Credentials_UI",
 ]
 
-[target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies.block2]
+[target.'cfg(target_vendor = "apple")'.dependencies.block2]
 version = "0.4.0"
 
-[target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies.tokio]
+[target.'cfg(target_vendor = "apple")'.dependencies.tokio]
 version = "1.35.1"
 default-features = false
 features = ["sync"]
 
-[target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies.icrate]
+[target.'cfg(target_vendor = "apple")'.dependencies.icrate]
 version = "0.1.0"
 features = [
     "Foundation_NSError",

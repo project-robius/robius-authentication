@@ -90,6 +90,16 @@ impl PolicyBuilder {
         }
     }
 
+    /// Sets whether the policy requires the watch to be on the user's wrist.
+    ///
+    /// This only has an effect on watchOS.
+    #[inline]
+    pub const fn wrist_detection(self, wrist_detection: bool) -> Self {
+        Self {
+            inner: self.inner.wrist_detection(wrist_detection),
+        }
+    }
+
     /// Constructs the policy.
     ///
     /// Returns `None` if the specified configuration is not valid for the

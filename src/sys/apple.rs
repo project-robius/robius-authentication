@@ -8,10 +8,7 @@ use icrate::{
         LAErrorBiometryLockout, LAErrorBiometryNotAvailable, LAErrorBiometryNotEnrolled,
         LAErrorBiometryNotPaired, LAErrorInvalidContext, LAErrorInvalidDimensions,
         LAErrorNotInteractive, LAErrorPasscodeNotSet, LAErrorSystemCancel, LAErrorUserCancel,
-        LAErrorUserFallback, LAErrorWatchNotAvailable, LAPolicy, LAPolicyDeviceOwnerAuthentication,
-        LAPolicyDeviceOwnerAuthenticationWithBiometrics,
-        LAPolicyDeviceOwnerAuthenticationWithBiometricsOrWatch,
-        LAPolicyDeviceOwnerAuthenticationWithWatch,
+        LAErrorUserFallback, LAErrorWatchNotAvailable, LAPolicy,
     },
 };
 use tokio::sync::oneshot;
@@ -20,50 +17,96 @@ use crate::{BiometricStrength, Error, Result};
 
 #[derive(Debug)]
 pub(crate) struct PolicyBuilder {
-    biometrics: bool,
-    password: bool,
-    watch: bool,
-    // wrist_detection: bool,
+    _biometrics: bool,
+    _password: bool,
+    _watch: bool,
+    _wrist_detection: bool,
 }
 
 impl PolicyBuilder {
     pub(crate) const fn new() -> Self {
         Self {
-            biometrics: false,
-            password: false,
-            watch: false,
-            // wrist_detection: false,
+            _biometrics: false,
+            _password: false,
+            _watch: false,
+            _wrist_detection: false,
         }
     }
 
     pub(crate) const fn biometrics(self, strength: Option<BiometricStrength>) -> Self {
         Self {
-            biometrics: strength.is_some(),
+            _biometrics: strength.is_some(),
             ..self
         }
     }
 
     pub(crate) const fn password(self, password: bool) -> Self {
-        Self { password, ..self }
+        Self {
+            _password: password,
+            ..self
+        }
     }
 
     pub(crate) const fn watch(self, watch: bool) -> Self {
-        Self { watch, ..self }
+        Self {
+            _watch: watch,
+            ..self
+        }
     }
 
-    // pub(crate) const fn wrist_detection(self, wrist_detection: bool) -> Self {
-    //     Self {
-    //         wrist_detection,
-    //         ..self
-    //     }
-    // }
+    pub(crate) const fn wrist_detection(self, wrist_detection: bool) -> Self {
+        Self {
+            _wrist_detection: wrist_detection,
+            ..self
+        }
+    }
 
     pub(crate) const fn build(self) -> Option<Policy> {
-        let policy = match (self.biometrics, self.password, self.watch) {
-            (true, true, true) => LAPolicyDeviceOwnerAuthentication,
-            (true, false, true) => LAPolicyDeviceOwnerAuthenticationWithBiometricsOrWatch,
-            (true, false, false) => LAPolicyDeviceOwnerAuthenticationWithBiometrics,
-            (false, false, true) => LAPolicyDeviceOwnerAuthenticationWithWatch,
+        use icrate::LocalAuthentication as la;
+
+        // TODO: Test
+
+        #[cfg(target_os = "watchos")]
+        let policy = match self {
+            Self {
+                _password: true,
+                _wrist_detection: true,
+                ..
+            } => la::LAPolicyDeviceOwnerAuthenticationWithWristDetection,
+            Self {
+                _password: true,
+                _wrist_detection: false,
+                ..
+            } => la::LAPolicyDeviceOwnerAuthentication,
+            _ => return None,
+        };
+
+        #[cfg(not(target_os = "watchos"))]
+        let policy = match self {
+            Self {
+                _biometrics: true,
+                _password: true,
+                _watch: true,
+                ..
+            } => la::LAPolicyDeviceOwnerAuthentication,
+            Self {
+                _biometrics: true,
+                _password: false,
+                _watch: true,
+                ..
+            } => la::LAPolicyDeviceOwnerAuthenticationWithBiometricsOrWatch,
+            Self {
+                _biometrics: true,
+                _password: false,
+                _watch: false,
+                ..
+            } => la::LAPolicyDeviceOwnerAuthenticationWithBiometrics,
+            Self {
+                _biometrics: false,
+                _password: false,
+                _watch: true,
+                ..
+            } => la::LAPolicyDeviceOwnerAuthenticationWithWatch,
             _ => return None,
         };
         Some(Policy { inner: policy })

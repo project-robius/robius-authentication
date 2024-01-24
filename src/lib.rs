@@ -1,4 +1,18 @@
+//! A cross-platform authentication framework.
+//!
+//! This crate supports:
+//! - Apple. More specifically, it uses the [`LAContext`] API, so it supports
+//!   all OS versions that support [`LAContext`].
+//! - Windows.
+//!
+//! [`LAContext`]: https://developer.apple.com/documentation/localauthentication/lacontext
+
+mod error;
 mod sys;
+
+pub use error::{Error, Result};
+
+// TODO: Remove contexts?
 
 /// A biometric strength class.
 ///
@@ -129,8 +143,12 @@ pub struct Policy {
 ///
 /// let context = Context::new();
 ///
-/// context.blocking_authenticate(&POLICY_A);
-/// context.blocking_authenticate(&POLICY_B);
+/// context
+///     .blocking_authenticate("reason", &POLICY_A)
+///     .expect("failed to authenticate policy A");
+/// context
+///     .blocking_authenticate("reason", &POLICY_B)
+///     .expect("failed to authenticate policy B");
 /// ```
 pub struct Context {
     inner: sys::Context,
@@ -155,12 +173,12 @@ impl Context {
     ///
     /// Returns whether the authentication was successful.
     #[inline]
-    pub async fn authenticate(&self, message: &str, policy: &Policy) -> bool {
+    pub async fn authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
         self.inner.authenticate(message, &policy.inner).await
     }
 
     #[inline]
-    pub fn blocking_authenticate(&self, message: &str, policy: &Policy) -> bool {
+    pub fn blocking_authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
         self.inner.blocking_authenticate(message, &policy.inner)
     }
 }

@@ -3,9 +3,13 @@ use std::mem::MaybeUninit;
 use block2::ConcreteBlock;
 use icrate::{
     objc2::rc::Id,
-    Foundation::{ns_string, NSString},
+    Foundation::{NSError, NSString},
     LocalAuthentication::{
-        LAContext, LAPolicy, LAPolicyDeviceOwnerAuthentication,
+        LAContext, LAErrorAppCancel, LAErrorAuthenticationFailed, LAErrorBiometryDisconnected,
+        LAErrorBiometryLockout, LAErrorBiometryNotAvailable, LAErrorBiometryNotEnrolled,
+        LAErrorBiometryNotPaired, LAErrorInvalidContext, LAErrorInvalidDimensions,
+        LAErrorNotInteractive, LAErrorPasscodeNotSet, LAErrorSystemCancel, LAErrorUserCancel,
+        LAErrorUserFallback, LAErrorWatchNotAvailable, LAPolicy, LAPolicyDeviceOwnerAuthentication,
         LAPolicyDeviceOwnerAuthenticationWithBiometrics,
         LAPolicyDeviceOwnerAuthenticationWithBiometricsOrWatch,
         LAPolicyDeviceOwnerAuthenticationWithWatch,
@@ -13,7 +17,7 @@ use icrate::{
 };
 use tokio::sync::oneshot;
 
-use crate::BiometricStrength;
+use crate::{BiometricStrength, Error, Result};
 
 #[derive(Debug)]
 pub(crate) struct PolicyBuilder {
@@ -82,17 +86,41 @@ impl Context {
         }
     }
 
-    fn authenticate_inner(&self, message: &str, policy: &Policy) -> oneshot::Receiver<bool> {
-        unsafe { self.inner.canEvaluatePolicy_error(policy.inner) }.unwrap();
-
+    fn authenticate_inner(&self, message: &str, policy: &Policy) -> oneshot::Receiver<Result<()>> {
         let (tx, rx) = oneshot::channel();
         let unsafe_tx = MaybeUninit::new(tx);
 
-        let block = ConcreteBlock::new(move |is_success, _error| {
+        let block = ConcreteBlock::new(move |is_success, error: *mut NSError| {
             // SAFETY: The callback is only executed once.
-            // NOTE: This may not succeed if the receiving future is dropped, but we don't
-            // really care.
-            let _ = unsafe { unsafe_tx.assume_init_read() }.send(bool::from(is_success));
+            let tx = unsafe { unsafe_tx.assume_init_read() };
+            let _ = if bool::from(is_success) {
+                tx.send(Ok(()))
+            } else {
+                let code = unsafe { &*error }.code();
+                #[allow(non_upper_case_globals)]
+                let error = match code {
+                    LAErrorAppCancel => Error::AppCanceled,
+                    LAErrorAuthenticationFailed => Error::Authentication,
+                    LAErrorBiometryDisconnected => Error::BiometryDisconnected,
+                    LAErrorBiometryLockout => Error::Exhausted,
+                    // NOTE: This is triggered when access to biometrics is denied.
+                    LAErrorBiometryNotAvailable => Error::Unavailable,
+                    LAErrorBiometryNotEnrolled => Error::NotEnrolled,
+                    LAErrorBiometryNotPaired => Error::NotPaired,
+                    // This error shouldn't occur, because we never invalidate the context.
+                    LAErrorInvalidContext => Error::Unknown,
+                    LAErrorInvalidDimensions => Error::InvalidDimensions,
+                    LAErrorNotInteractive => Error::NotInteractive,
+                    LAErrorPasscodeNotSet => Error::PasscodeNotSet,
+                    LAErrorSystemCancel => Error::SystemCanceled,
+                    LAErrorUserCancel => Error::UserCanceled,
+                    // TODO
+                    LAErrorUserFallback => Error::Unknown,
+                    LAErrorWatchNotAvailable => Error::WatchNotAvailable,
+                    _ => Error::Unknown,
+                };
+                tx.send(Err(error))
+            };
         })
         .copy();
 
@@ -107,12 +135,12 @@ impl Context {
         rx
     }
 
-    pub(crate) async fn authenticate(&self, message: &str, policy: &Policy) -> bool {
+    pub(crate) async fn authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
         // The callback should always execute and hence a message will always be sent.
         self.authenticate_inner(message, policy).await.unwrap()
     }
 
-    pub(crate) fn blocking_authenticate(&self, message: &str, policy: &Policy) -> bool {
+    pub(crate) fn blocking_authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
         // The callback should always execute and hence a message will always be sent.
         self.authenticate_inner(message, policy)
             .blocking_recv()

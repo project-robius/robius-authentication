@@ -3,6 +3,10 @@ name = "robius-authentication"
 version = "0.1.0"
 edition = "2021"
 
+# [lib]
+# name = "auth"
+# crate-type = ["staticlib"]
+
 [dependencies]
 cfg-if = "1.0.0"
 

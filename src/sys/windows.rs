@@ -1,10 +1,12 @@
 use windows::{
     core::HSTRING,
     Foundation::IAsyncOperation,
-    Security::Credentials::UI::{UserConsentVerificationResult, UserConsentVerifier},
+    Security::Credentials::UI::{
+        UserConsentVerificationResult, UserConsentVerifier, UserConsentVerifierAvailability,
+    },
 };
 
-use crate::BiometricStrength;
+use crate::{BiometricStrength, Error, Result};
 
 #[derive(Debug)]
 pub(crate) struct PolicyBuilder;
@@ -44,24 +46,72 @@ impl Context {
         Self
     }
 
-    fn authenticate_inner(message: &str) -> IAsyncOperation<UserConsentVerificationResult> {
-        // TODO: len
-        let mut caption = Vec::with_capacity(message.len());
+    pub(crate) async fn authenticate(&self, message: &str, _: &Policy) -> Result<()> {
+        // NOTE: If we don't check availability, `request_verification` will hang.
 
-        for c in message.encode_utf16() {
-            caption.push(c);
+        if check_availability()?.await == Ok(UserConsentVerifierAvailability::Available) {
+            convert(request_verification(message)?.await?)
+        } else {
+            // TODO: Fallback to password?
+            // https://github.com/tsoutsman/robius-authentication/blob/ddb08e75c452ece39ae9b807c7aeb21161836332/src/sys/windows.rs
+            Err(Error::Unavailable)
         }
-        caption.push(0);
-
-        UserConsentVerifier::RequestVerificationAsync(&HSTRING::from_wide(&caption[..]).unwrap())
-            .unwrap()
     }
 
-    pub(crate) async fn authenticate(&self, message: &str, _: &Policy) -> bool {
-        Self::authenticate_inner(message).await.unwrap() == UserConsentVerificationResult::Verified
-    }
+    pub(crate) fn blocking_authenticate(&self, message: &str, _: &Policy) -> Result<()> {
+        // NOTE: If we don't check availability, `request_verification` will hang.
 
-    pub(crate) fn blocking_authenticate(&self, message: &str, _: &Policy) -> bool {
-        todo!();
+        if check_availability()?.get() == Ok(UserConsentVerifierAvailability::Available) {
+            convert(request_verification(message)?.get()?)
+        } else {
+            // TODO: Fallback to password?
+            // https://github.com/tsoutsman/robius-authentication/blob/ddb08e75c452ece39ae9b807c7aeb21161836332/src/sys/windows.rs
+            Err(Error::Unavailable)
+        }
+    }
+}
+
+fn check_availability() -> Result<IAsyncOperation<UserConsentVerifierAvailability>> {
+    UserConsentVerifier::CheckAvailabilityAsync().map_err(|e| e.into())
+}
+
+fn request_verification(message: &str) -> Result<IAsyncOperation<UserConsentVerificationResult>> {
+    let caption = caption(message);
+
+    UserConsentVerifier::RequestVerificationAsync(&HSTRING::from_wide(&caption[..])?)
+        .map_err(|e| e.into())
+}
+
+fn caption(message: &str) -> Vec<u16> {
+    let mut caption = Vec::with_capacity(message.len());
+
+    for c in message.encode_utf16() {
+        caption.push(c);
+    }
+    caption.push(0);
+
+    caption
+}
+
+fn convert(result: UserConsentVerificationResult) -> Result<()> {
+    match result {
+        UserConsentVerificationResult::Verified => Ok(()),
+        UserConsentVerificationResult::DeviceNotPresent => Err(Error::Unavailable),
+        UserConsentVerificationResult::NotConfiguredForUser => Err(Error::Unavailable),
+        UserConsentVerificationResult::DisabledByPolicy => Err(Error::Unavailable),
+        UserConsentVerificationResult::DeviceBusy => Err(Error::Busy),
+        UserConsentVerificationResult::RetriesExhausted => Err(Error::Exhausted),
+        UserConsentVerificationResult::Canceled => Err(Error::UserCanceled),
+        _ => Err(Error::Unknown),
+    }
+}
+
+impl From<windows::core::Error> for Error {
+    fn from(_value: windows::core::Error) -> Self {
+        // TODO
+        // match value.code().0 {
+        //     _ => Self::Unknown,
+        // }
+        Self::Unknown
     }
 }

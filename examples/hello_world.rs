@@ -12,7 +12,10 @@ fn main() {
 
     let context = Context::new();
 
-    if context.blocking_authenticate("verify your identity", &POLICY) {
+    if context
+        .blocking_authenticate("verify your identity", &POLICY)
+        .is_ok()
+    {
         println!("Authorized");
     } else {
         println!("Unauthorized");

@@ -1,9 +1,9 @@
-#![feature(const_option)]
+// #![feature(const_option)]
 
 use robius_authentication::{blocking_authenticate, BiometricStrength, Policy, PolicyBuilder};
 
 fn main() {
-    const POLICY: Policy = PolicyBuilder::new()
+    let POLICY: Policy = PolicyBuilder::new()
         .biometrics(Some(BiometricStrength::Strong))
         .password(true)
         .watch(true)

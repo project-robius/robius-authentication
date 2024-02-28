@@ -1,5 +1,7 @@
 use crate::{BiometricStrength, Result};
 
+pub(crate) struct Policy;
+
 #[derive(Debug)]
 pub(crate) struct PolicyBuilder;
 
@@ -20,19 +22,19 @@ impl PolicyBuilder {
         Self
     }
 
-    // pub(crate) const fn wrist_detection(self, _: bool) -> Self {
-    //     Self
-    // }
+    pub(crate) const fn wrist_detection(self, _: bool) -> Self {
+        Self
+    }
 
     pub(crate) const fn build(self) -> Option<Policy> {
         None
     }
 }
 
-pub(crate) async fn authenticate(_: &Policy) -> Result<()> {
+pub(crate) async fn authenticate(_message: &str, _policy: &Policy) -> Result<()> {
     unimplemented!()
 }
 
-pub(crate) fn blocking_authenticate(_: &Policy) -> Result<()> {
+pub(crate) fn blocking_authenticate(_message: &str, _policy: &Policy) -> Result<()> {
     unimplemented!()
 }

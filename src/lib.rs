@@ -11,6 +11,12 @@ mod error;
 mod sys;
 
 pub use error::{Error, Result};
+#[cfg(target_os = "android")]
+use jni::{
+    objects::{JClass, JString},
+    sys::jstring,
+    JNIEnv,
+};
 
 /// A biometric strength class.
 ///
@@ -134,4 +140,19 @@ pub async fn authenticate(message: &str, policy: &Policy) -> Result<()> {
 #[inline]
 pub fn blocking_authenticate(message: &str, policy: &Policy) -> Result<()> {
     sys::blocking_authenticate(message, &policy.inner)
+}
+
+// TODO
+
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub unsafe extern "C" fn Java_com_example_myapplication2_Test_greeting(mut env: JNIEnv, _: JClass) {
+    android_logger::init_once(
+        android_logger::Config::default()
+            .with_max_level(log::LevelFilter::Error)
+            .with_tag("mytag"), // logs will show under mytag tag
+    );
+
+    let policy = PolicyBuilder::new().build().unwrap();
+    let _ = blocking_authenticate("something", &policy);
 }

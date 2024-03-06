@@ -7,7 +7,7 @@ public class AuthenticationCallback extends BiometricPrompt.AuthenticationCallba
   private long pointer;
 
   /* TODO: There are neater ways of doing this */
-  private native void rustCallback(long pointer, int errorCode, int failed, int helpCode);
+  private native void rustCallback(long pointer, int errorCode, boolean failed, int helpCode);
 
   public AuthenticationCallback(long pointer) {
     this.pointer = pointer;
@@ -31,7 +31,7 @@ public class AuthenticationCallback extends BiometricPrompt.AuthenticationCallba
   public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
 //   rustCallback(pointer, 0, 0, 0);
     System.out.println("auth succeeded");
-    rustCallback(pointer, 0, 0, 0);
+    rustCallback(pointer, 0, false, 0);
     System.out.println("call successful");
   }
 }

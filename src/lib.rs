@@ -11,11 +11,9 @@ mod error;
 mod sys;
 
 pub use error::{Error, Result};
-use jni::{objects::JObject, sys::jlong};
 #[cfg(target_os = "android")]
 use jni::{
-    objects::{JClass, JString},
-    sys::jstring,
+    objects::{JClass, JObject},
     JNIEnv,
 };
 
@@ -134,8 +132,8 @@ pub struct Policy {
 ///
 /// Returns whether the authentication was successful.
 #[inline]
-pub async fn authenticate(message: &str, policy: &Policy) -> Result<()> {
-    sys::authenticate(message, &policy.inner).await
+pub async fn authenticate(ctx: JObject<'_>, message: &str, policy: &Policy) -> Result<()> {
+    sys::authenticate(ctx, message, &policy.inner).await
 }
 
 #[inline]
@@ -143,12 +141,14 @@ pub fn blocking_authenticate(ctx: JObject, message: &str, policy: &Policy) -> Re
     sys::blocking_authenticate(ctx, message, &policy.inner)
 }
 
+// TODO: Remove. This is only for testing.
+
 #[cfg(target_os = "android")]
 #[no_mangle]
 pub unsafe extern "C" fn Java_com_example_myapplication2_Test_greeting<'a>(
-    mut env: JNIEnv<'a>,
+    _: JNIEnv<'a>,
     _: JClass<'a>,
-    input: JObject<'a>,
+    input: JObject<'static>,
 ) {
     android_logger::init_once(
         android_logger::Config::default()
@@ -157,5 +157,8 @@ pub unsafe extern "C" fn Java_com_example_myapplication2_Test_greeting<'a>(
     );
 
     let policy = PolicyBuilder::new().build().unwrap();
-    let _ = blocking_authenticate(input, "something", &policy);
+
+    // If we were to await on the future, it would have to be on a different thread,
+    // as otherwise we would block the main thread causing all sorts of problems.
+    blocking_authenticate(input, "something", &policy).unwrap();
 }

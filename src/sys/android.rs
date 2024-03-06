@@ -2,9 +2,10 @@ use std::sync::OnceLock;
 
 use jni::{
     objects::{JClass, JObject, JValueGen},
-    sys::{jint, jlong},
+    sys::{jboolean, jint, jlong},
     JNIEnv, JavaVM, NativeMethod,
 };
+use tokio::sync::oneshot::{Receiver, Sender};
 
 use crate::{BiometricStrength, Result};
 
@@ -15,24 +16,28 @@ const AUTHENTICATION_CALLBACK_BYTECODE: &[u8] =
 
 #[no_mangle]
 #[doc(hidden)]
-pub unsafe extern "C" fn JNI_OnLoad(
-    vm: *mut jni::sys::JavaVM,
-    _: std::ffi::c_void,
-) -> jni::sys::jint {
+pub unsafe extern "C" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _: std::ffi::c_void) -> jint {
     VM.set(unsafe { JavaVM::from_raw(vm) }.unwrap()).unwrap();
     // TODO
     jni::sys::JNI_VERSION_1_6 as _
 }
 
-extern "C" fn rust_callback<'a>(
-    mut env: JNIEnv<'a>,
+const RUST_CALLBACK_SIGNATURE: &str = "(JIZI)V";
+
+unsafe extern "C" fn rust_callback<'a>(
+    _: JNIEnv<'a>,
     _: JObject<'a>,
     channel_ptr: jlong,
-    _error_code: jint,
-    _failed: jint,
-    _help_code: jint,
+    error_code: jint,
+    failed: jboolean,
+    help_code: jint,
 ) {
-    log::error!("HECLRUHRLOEUHROCLEUH TESTING: {channel_ptr:#?}");
+    log::error!(
+        "rust callback invoked: {channel_ptr:#?} {error_code:#?} {failed:#?} {help_code:#?}"
+    );
+
+    let channel = unsafe { Box::from_raw(channel_ptr as *mut Sender<()>) };
+    let _ = channel.send(());
 }
 
 pub(crate) struct Policy;
@@ -66,40 +71,52 @@ impl PolicyBuilder {
     }
 }
 
-pub(crate) async fn authenticate(_message: &str, _policy: &Policy) -> Result<()> {
-    unimplemented!()
+pub(crate) async fn authenticate(
+    context: JObject<'_>,
+    message: &str,
+    policy: &Policy,
+) -> Result<()> {
+    authenticate_inner(context, message, policy)?.await.unwrap();
+    Ok(())
 }
 
 pub(crate) fn blocking_authenticate(
-    context: JObject,
-    _message: &str,
-    _policy: &Policy,
+    context: JObject<'_>,
+    message: &str,
+    policy: &Policy,
 ) -> Result<()> {
+    // Unable to start activity:
+    //
+    // java.lang.SecurityException: Must have USE_BIOMETRIC permission: Neither user
+    // 10191 nor current process has android.permission.USE_BIOMETRIC.
+
+    // https://android.googlesource.com/platform/frameworks/support/+/63add6e2590077c18556dcdd96aa5c6ff68eb13b/biometric/biometric/src/main/AndroidManifest.xml
+
+    // TODO: If we actually call blocking_recv, it blocks the main thread somehow
+    // preventing the callback from being invoked and leading to deadlock.
+    authenticate_inner(context, message, policy)?;
+    // .blocking_recv()
+    // .unwrap();
+    Ok(())
+}
+
+fn authenticate_inner(context: JObject, _message: &str, _policy: &Policy) -> Result<Receiver<()>> {
     let vm = VM.get().unwrap();
     let mut env = vm.get_env().unwrap();
 
+    let callback_class = load_callback_class(&mut env);
+    register_rust_callback(&mut env, &callback_class);
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+
+    let callback_instance =
+        construct_callback(&mut env, &callback_class, Box::into_raw(Box::new(tx)));
+    let cancellation_signal = construct_cancellation_signal(&mut env);
+    let executor = get_executor(&mut env, &context);
+
     let biometric_prompt = construct_biometric_prompt(&mut env, &context);
 
-    let class = load_callback_class(&mut env);
-    let callback_instance = construct_callback(&mut env, &class, allocate_channel());
-
-    let cancellation_signal = construct_cancellation_signal(&mut env);
-    let executor = get_executor(&mut env, context);
-
-    log::error!("try");
-
-    let temp = env.register_native_methods(
-        class,
-        &[NativeMethod {
-            name: "rustCallback".into(),
-            sig: "(JIII)V".into(),
-            fn_ptr: rust_callback as *mut _,
-        }],
-    );
-
-    log::error!("here");
-
-    let res = env.call_method(
+    env.call_method(
         biometric_prompt,
         "authenticate",
         "(Landroid/os/CancellationSignal;Ljava/util/concurrent/Executor;Landroid/hardware/\
@@ -109,17 +126,9 @@ pub(crate) fn blocking_authenticate(
             JValueGen::Object(&executor),
             JValueGen::Object(&callback_instance),
         ],
-    );
-    log::info!("so?jlkla: {res:#?}");
-
-    // Unable to start activity:
-    //
-    // java.lang.SecurityException: Must have USE_BIOMETRIC permission: Neither user
-    // 10191 nor current process has android.permission.USE_BIOMETRIC.
-
-    // https://android.googlesource.com/platform/frameworks/support/+/63add6e2590077c18556dcdd96aa5c6ff68eb13b/biometric/biometric/src/main/AndroidManifest.xml
-
-    Ok(())
+    )
+    .unwrap();
+    Ok(rx)
 }
 
 fn load_callback_class<'a>(env: &mut JNIEnv<'a>) -> JClass<'a> {
@@ -145,8 +154,6 @@ fn load_callback_class<'a>(env: &mut JNIEnv<'a>) -> JClass<'a> {
         )
         .unwrap();
 
-    log::error!("a");
-
     env.call_method(
         &dex_class_loader,
         "loadClass",
@@ -162,31 +169,55 @@ fn load_callback_class<'a>(env: &mut JNIEnv<'a>) -> JClass<'a> {
     .into()
 }
 
-fn allocate_channel() -> i64 {
-    0xdeadbeef
+fn register_rust_callback<'a>(env: &mut JNIEnv<'a>, callback_class: &JClass<'a>) {
+    env.register_native_methods(
+        callback_class,
+        &[NativeMethod {
+            name: "rustCallback".into(),
+            sig: RUST_CALLBACK_SIGNATURE.into(),
+            fn_ptr: rust_callback as *mut _,
+        }],
+    )
+    .unwrap();
 }
 
 fn construct_callback<'a>(
     env: &mut JNIEnv<'a>,
     class: &JClass<'a>,
-    channel_ptr: i64,
+    channel_ptr: *mut Sender<()>,
 ) -> JObject<'a> {
-    env.new_object(class, "(J)V", &[JValueGen::Long(channel_ptr)])
+    env.new_object(class, "(J)V", &[JValueGen::Long(channel_ptr as i64)])
         .unwrap()
 }
 
-fn construct_biometric_prompt<'a>(env: &mut JNIEnv<'a>, context: &JObject<'a>) -> JObject<'a> {
-    const BUILDER_CLASS: &str = "android/hardware/biometrics/BiometricPrompt$Builder";
+fn construct_cancellation_signal<'a>(env: &mut JNIEnv<'a>) -> JObject<'a> {
+    env.new_object("android/os/CancellationSignal", "()V", &[])
+        .unwrap()
+}
 
+fn get_executor<'a>(env: &mut JNIEnv<'a>, context: &JObject<'a>) -> JObject<'a> {
+    env.call_method(
+        context,
+        "getMainExecutor",
+        "()Ljava/util/concurrent/Executor;",
+        &[],
+    )
+    .unwrap()
+    .l()
+    .unwrap()
+}
+
+fn construct_biometric_prompt<'a>(env: &mut JNIEnv<'a>, context: &JObject<'a>) -> JObject<'a> {
     let builder = env
         .new_object(
-            BUILDER_CLASS,
+            "android/hardware/biometrics/BiometricPrompt$Builder",
             "(Landroid/content/Context;)V",
-            &[JValueGen::Object(&context)],
+            &[JValueGen::Object(context)],
         )
         .unwrap();
 
-    let title = env.new_string("HELLO FROM RUST").unwrap();
+    // TODO: Custom title and subtitle
+    let title = env.new_string("Rust authentication prompt").unwrap();
 
     env.call_method(
         &builder,
@@ -210,23 +241,6 @@ fn construct_biometric_prompt<'a>(env: &mut JNIEnv<'a>, context: &JObject<'a>) -
         builder,
         "build",
         "()Landroid/hardware/biometrics/BiometricPrompt;",
-        &[],
-    )
-    .unwrap()
-    .l()
-    .unwrap()
-}
-
-fn construct_cancellation_signal<'a>(env: &mut JNIEnv<'a>) -> JObject<'a> {
-    env.new_object("android/os/CancellationSignal", "()V", &[])
-        .unwrap()
-}
-
-fn get_executor<'a>(env: &mut JNIEnv<'a>, context: JObject<'a>) -> JObject<'a> {
-    env.call_method(
-        context,
-        "getMainExecutor",
-        "()Ljava/util/concurrent/Executor;",
         &[],
     )
     .unwrap()

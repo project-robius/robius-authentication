@@ -3,7 +3,6 @@ package robius.authentication;
 import android.hardware.biometrics.BiometricPrompt;
 
 public class AuthenticationCallback extends BiometricPrompt.AuthenticationCallback {
-// TODO: Use primitve?
   private long pointer;
 
   /* TODO: There are neater ways of doing this */
@@ -14,22 +13,21 @@ public class AuthenticationCallback extends BiometricPrompt.AuthenticationCallba
   }
 
   public void onAuthenticationError(int errorCode, CharSequence errString) {
-//     rustCallback(pointer, errorCode, 0, 0);
-    System.out.println("auth error: " + errorCode + "r aeuhocr hu " + errString);
+    System.out.println("auth error: " + errorCode + " " + errString);
+    rustCallback(pointer, errorCode, false, 0);
   }
 
   public void onAuthenticationFailed() {
-//     rustCallback(pointer, 0, 1, 0);
     System.out.println("auth failed");
+    rustCallback(pointer, 0, true, 0);
   }
 
   public void onAuthenticationHelp(int helpCode, CharSequence helpString) {
-//     rustCallback(pointer, 0, 0, helpCode);
     System.out.println("auth help");
+    rustCallback(pointer, 0, false, helpCode);
   }
 
   public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
-//   rustCallback(pointer, 0, 0, 0);
     System.out.println("auth succeeded");
     rustCallback(pointer, 0, false, 0);
     System.out.println("call successful");

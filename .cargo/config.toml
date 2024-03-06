@@ -1,6 +1,6 @@
 [build]
-#target = "aarch64-linux-android"
-target = "aarch64-unknown-linux-gnu"
+target = "aarch64-linux-android"
+#target = "aarch64-unknown-linux-gnu"
 
 [target.aarch64-linux-android]
 ar = "/Users/klim/Projects/robius/shared-directory-utm/robius-authentication/NDK/arm64/bin/aarch64-linux-android-ar"

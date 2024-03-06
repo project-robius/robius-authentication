@@ -29,7 +29,7 @@ fn main() {
             "javac invocation failed"
         );
 
-        let class_file = format!("{out_dir}/AuthenticationCallback.class");
+        let class_file = format!("{out_dir}/robius/authentication/AuthenticationCallback.class");
 
         assert!(
             Command::new(d8_path)

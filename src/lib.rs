@@ -11,6 +11,7 @@ mod error;
 mod sys;
 
 pub use error::{Error, Result};
+use jni::objects::JObject;
 #[cfg(target_os = "android")]
 use jni::{
     objects::{JClass, JString},
@@ -138,15 +139,26 @@ pub async fn authenticate(message: &str, policy: &Policy) -> Result<()> {
 }
 
 #[inline]
-pub fn blocking_authenticate(message: &str, policy: &Policy) -> Result<()> {
-    sys::blocking_authenticate(message, &policy.inner)
+pub fn blocking_authenticate(ctx: JObject, message: &str, policy: &Policy) -> Result<()> {
+    sys::blocking_authenticate(ctx, message, &policy.inner)
 }
-
-// TODO
 
 #[cfg(target_os = "android")]
 #[no_mangle]
-pub unsafe extern "C" fn Java_com_example_myapplication2_Test_greeting(mut env: JNIEnv, _: JClass) {
+pub unsafe extern "C" fn Java_robius_authentication_AuthenticationCallback_rustCallback<'a>(
+    mut env: JNIEnv<'a>,
+    _: JObject<'a>,
+) {
+    log::error!("HECLRUHRLOEUHROCLEUH TESTING");
+}
+
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub unsafe extern "C" fn Java_com_example_myapplication2_Test_greeting<'a>(
+    mut env: JNIEnv<'a>,
+    _: JClass<'a>,
+    input: JObject<'a>,
+) {
     android_logger::init_once(
         android_logger::Config::default()
             .with_max_level(log::LevelFilter::Error)
@@ -154,5 +166,5 @@ pub unsafe extern "C" fn Java_com_example_myapplication2_Test_greeting(mut env: 
     );
 
     let policy = PolicyBuilder::new().build().unwrap();
-    let _ = blocking_authenticate("something", &policy);
+    let _ = blocking_authenticate(input, "something", &policy);
 }

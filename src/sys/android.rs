@@ -1,9 +1,9 @@
 use std::sync::mpsc::channel;
 
 use jni::{
-    objects::{JObject, JString, JValueGen},
+    objects::{JClass, JObject, JString, JValueGen},
     strings::JNIString,
-    JNIEnv, JavaVM,
+    JNIEnv, JavaVM, NativeMethod,
 };
 
 use crate::{BiometricStrength, Result};
@@ -18,7 +18,7 @@ const AUTHENTICATION_CALLBACK_BYTECODE: &[u8] =
 pub unsafe extern "C" fn JNI_OnLoad(
     vm: *mut jni::sys::JavaVM,
     _: std::ffi::c_void,
-) -> jni_sys::jint {
+) -> jni::sys::jint {
     VM = vm as *mut _ as _;
     // TODO
     jni::sys::JNI_VERSION_1_6 as _
@@ -59,7 +59,11 @@ pub(crate) async fn authenticate(_message: &str, _policy: &Policy) -> Result<()>
     unimplemented!()
 }
 
-pub(crate) fn blocking_authenticate(_message: &str, _policy: &Policy) -> Result<()> {
+pub(crate) fn blocking_authenticate(
+    context: JObject,
+    _message: &str,
+    _policy: &Policy,
+) -> Result<()> {
     let vm_ptr = unsafe { VM };
     assert!(!vm_ptr.is_null());
     let vm = unsafe { JavaVM::from_raw(vm_ptr) }.unwrap();
@@ -68,13 +72,66 @@ pub(crate) fn blocking_authenticate(_message: &str, _policy: &Policy) -> Result<
     const BIOMETRIC_PROMPT_CLASS: &str = "android/hardware/biometrics/BiometricPrompt";
     const AUTHENTICATION_FUNCTION: &str = "authenticate";
 
+    let biometric_prompt = construct_biometric_prompt(&mut env, &context);
+
     let class = load_callback_class(&mut env);
-    let constructor = get_constructor(&mut env, class);
+
+    // let t = env
+    //     .call_method(&class, "getTypeName", "()Ljava/lang/String;", &[])
+    //     .unwrap()
+    //     .l()
+    //     .unwrap();
+    // let u = unsafe { JString::from_raw(t.into_raw()) };
+    // let b = env.get_string(&u).unwrap();
+    // let t = b.to_str().unwrap();
+    // log::error!("t: {t:#?}");
+
+    // let c = env.find_class("robius/authentication/AuthenticationCallback");
+    // log::error!("a: {c:#?}");
+    //
+    // let c = env.find_class(fucking_whatever);
+    // log::error!("b: {c:#?}");
+    // panic!();
+
+    let constructor = get_constructor(&mut env, &class);
     let callback_instance = construct(&mut env, constructor, allocate_channel());
 
-    let authenticate_signature = "(Landroid/os/CancellationSignal;Ljava/util/concurrent/Executor;\
-                                  Landroid/hardware/biometrics/\
-                                  BiometricPrompt$AuthenticationCallback;)V";
+    let cancellation_signal = construct_cancellation_signal(&mut env);
+    let executor = get_executor(&mut env, context);
+
+    log::error!("try");
+
+    let fucking_whatever: JClass = class.into();
+    let temp = env.register_native_methods(
+        fucking_whatever,
+        &[NativeMethod {
+            name: "rustCallback".into(),
+            sig: "()V".into(),
+            fn_ptr: crate::Java_robius_authentication_AuthenticationCallback_rustCallback as *mut _,
+        }],
+    );
+
+    log::error!("here");
+
+    let res = env.call_method(
+        biometric_prompt,
+        "authenticate",
+        "(Landroid/os/CancellationSignal;Ljava/util/concurrent/Executor;Landroid/hardware/\
+         biometrics/BiometricPrompt$AuthenticationCallback;)V",
+        &[
+            JValueGen::Object(&cancellation_signal),
+            JValueGen::Object(&executor),
+            JValueGen::Object(&callback_instance),
+        ],
+    );
+    log::info!("so?jlkla: {res:#?}");
+
+    // Unable to start activity:
+    //
+    // java.lang.SecurityException: Must have USE_BIOMETRIC permission: Neither user
+    // 10191 nor current process has android.permission.USE_BIOMETRIC.
+
+    // https://android.googlesource.com/platform/frameworks/support/+/63add6e2590077c18556dcdd96aa5c6ff68eb13b/biometric/biometric/src/main/AndroidManifest.xml
 
     Ok(())
 }
@@ -102,12 +159,15 @@ fn load_callback_class<'a>(env: &mut JNIEnv<'a>) -> JObject<'a> {
         )
         .unwrap();
 
+    log::error!("a");
+
     env.call_method(
         &dex_class_loader,
         "loadClass",
         "(Ljava/lang/String;)Ljava/lang/Class;",
         &[JValueGen::Object(&JObject::from(
-            env.new_string("AuthenticationCallback").unwrap(),
+            env.new_string("robius/authentication/AuthenticationCallback")
+                .unwrap(),
         ))],
     )
     .unwrap()
@@ -115,7 +175,7 @@ fn load_callback_class<'a>(env: &mut JNIEnv<'a>) -> JObject<'a> {
     .unwrap()
 }
 
-fn get_constructor<'a>(env: &mut JNIEnv<'a>, callback_class: JObject<'a>) -> JObject<'a> {
+fn get_constructor<'a>(env: &mut JNIEnv<'a>, callback_class: &JObject<'a>) -> JObject<'a> {
     let constructors = env
         .call_method(
             callback_class,
@@ -124,8 +184,6 @@ fn get_constructor<'a>(env: &mut JNIEnv<'a>, callback_class: JObject<'a>) -> JOb
             &[],
         )
         .unwrap();
-
-    log::error!("{constructors:?}");
 
     env.call_static_method(
         "java/lang/reflect/Array",
@@ -163,6 +221,65 @@ fn construct<'a>(env: &mut JNIEnv<'a>, constructor: JObject<'a>, channel_ptr: i6
         "newInstance",
         "([Ljava/lang/Object;)Ljava/lang/Object;",
         &[constructor_parameters.borrow()],
+    )
+    .unwrap()
+    .l()
+    .unwrap()
+}
+
+fn construct_biometric_prompt<'a>(env: &mut JNIEnv<'a>, context: &JObject<'a>) -> JObject<'a> {
+    const BUILDER_CLASS: &str = "android/hardware/biometrics/BiometricPrompt$Builder";
+
+    let builder = env
+        .new_object(
+            BUILDER_CLASS,
+            "(Landroid/content/Context;)V",
+            &[JValueGen::Object(&context)],
+        )
+        .unwrap();
+
+    let title = env.new_string("HELLO FROM RUST").unwrap();
+
+    env.call_method(
+        &builder,
+        "setTitle",
+        "(Ljava/lang/CharSequence;)Landroid/hardware/biometrics/BiometricPrompt$Builder;",
+        &[JValueGen::Object(&title)],
+    )
+    .unwrap();
+
+    env.call_method(
+        &builder,
+        "setAllowedAuthenticators",
+        "(I)Landroid/hardware/biometrics/BiometricPrompt$Builder;",
+        // TODO: We require password authentication for now otherwise we would also have to pass a
+        // cancel callback.
+        &[JValueGen::Int(0x0000000f | 0x000000ff | 0x00008000)],
+    )
+    .unwrap();
+
+    env.call_method(
+        builder,
+        "build",
+        "()Landroid/hardware/biometrics/BiometricPrompt;",
+        &[],
+    )
+    .unwrap()
+    .l()
+    .unwrap()
+}
+
+fn construct_cancellation_signal<'a>(env: &mut JNIEnv<'a>) -> JObject<'a> {
+    env.new_object("android/os/CancellationSignal", "()V", &[])
+        .unwrap()
+}
+
+fn get_executor<'a>(env: &mut JNIEnv<'a>, context: JObject<'a>) -> JObject<'a> {
+    env.call_method(
+        context,
+        "getMainExecutor",
+        "()Ljava/util/concurrent/Executor;",
+        &[],
     )
     .unwrap()
     .l()

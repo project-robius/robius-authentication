@@ -85,13 +85,6 @@ pub(crate) fn blocking_authenticate(
     message: &str,
     policy: &Policy,
 ) -> Result<()> {
-    // Unable to start activity:
-    //
-    // java.lang.SecurityException: Must have USE_BIOMETRIC permission: Neither user
-    // 10191 nor current process has android.permission.USE_BIOMETRIC.
-
-    // https://android.googlesource.com/platform/frameworks/support/+/63add6e2590077c18556dcdd96aa5c6ff68eb13b/biometric/biometric/src/main/AndroidManifest.xml
-
     // TODO: If we actually call blocking_recv, it blocks the main thread somehow
     // preventing the callback from being invoked and leading to deadlock.
     authenticate_inner(context, message, policy)?;

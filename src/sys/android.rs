@@ -1,14 +1,13 @@
-use std::sync::mpsc::channel;
+use std::sync::OnceLock;
 
 use jni::{
-    objects::{JClass, JObject, JString, JValueGen},
-    strings::JNIString,
+    objects::{JClass, JObject, JValueGen},
     JNIEnv, JavaVM, NativeMethod,
 };
 
 use crate::{BiometricStrength, Result};
 
-static mut VM: *mut jni::sys::JavaVM = std::ptr::null_mut();
+static VM: OnceLock<JavaVM> = OnceLock::new();
 
 const AUTHENTICATION_CALLBACK_BYTECODE: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/classes.dex"));
@@ -19,7 +18,7 @@ pub unsafe extern "C" fn JNI_OnLoad(
     vm: *mut jni::sys::JavaVM,
     _: std::ffi::c_void,
 ) -> jni::sys::jint {
-    VM = vm as *mut _ as _;
+    VM.set(unsafe { JavaVM::from_raw(vm) }.unwrap()).unwrap();
     // TODO
     jni::sys::JNI_VERSION_1_6 as _
 }
@@ -64,34 +63,12 @@ pub(crate) fn blocking_authenticate(
     _message: &str,
     _policy: &Policy,
 ) -> Result<()> {
-    let vm_ptr = unsafe { VM };
-    assert!(!vm_ptr.is_null());
-    let vm = unsafe { JavaVM::from_raw(vm_ptr) }.unwrap();
+    let vm = VM.get().unwrap();
     let mut env = vm.get_env().unwrap();
-
-    const BIOMETRIC_PROMPT_CLASS: &str = "android/hardware/biometrics/BiometricPrompt";
-    const AUTHENTICATION_FUNCTION: &str = "authenticate";
 
     let biometric_prompt = construct_biometric_prompt(&mut env, &context);
 
     let class = load_callback_class(&mut env);
-
-    // let t = env
-    //     .call_method(&class, "getTypeName", "()Ljava/lang/String;", &[])
-    //     .unwrap()
-    //     .l()
-    //     .unwrap();
-    // let u = unsafe { JString::from_raw(t.into_raw()) };
-    // let b = env.get_string(&u).unwrap();
-    // let t = b.to_str().unwrap();
-    // log::error!("t: {t:#?}");
-
-    // let c = env.find_class("robius/authentication/AuthenticationCallback");
-    // log::error!("a: {c:#?}");
-    //
-    // let c = env.find_class(fucking_whatever);
-    // log::error!("b: {c:#?}");
-    // panic!();
 
     let constructor = get_constructor(&mut env, &class);
     let callback_instance = construct(&mut env, constructor, allocate_channel());
@@ -101,9 +78,8 @@ pub(crate) fn blocking_authenticate(
 
     log::error!("try");
 
-    let fucking_whatever: JClass = class.into();
     let temp = env.register_native_methods(
-        fucking_whatever,
+        class,
         &[NativeMethod {
             name: "rustCallback".into(),
             sig: "()V".into(),
@@ -136,7 +112,7 @@ pub(crate) fn blocking_authenticate(
     Ok(())
 }
 
-fn load_callback_class<'a>(env: &mut JNIEnv<'a>) -> JObject<'a> {
+fn load_callback_class<'a>(env: &mut JNIEnv<'a>) -> JClass<'a> {
     const LOADER_CLASS: &str = "dalvik/system/InMemoryDexClassLoader";
 
     let byte_buffer = unsafe {
@@ -173,9 +149,10 @@ fn load_callback_class<'a>(env: &mut JNIEnv<'a>) -> JObject<'a> {
     .unwrap()
     .l()
     .unwrap()
+    .into()
 }
 
-fn get_constructor<'a>(env: &mut JNIEnv<'a>, callback_class: &JObject<'a>) -> JObject<'a> {
+fn get_constructor<'a>(env: &mut JNIEnv<'a>, callback_class: &JClass<'a>) -> JObject<'a> {
     let constructors = env
         .call_method(
             callback_class,

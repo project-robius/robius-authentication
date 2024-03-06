@@ -2,6 +2,7 @@ use std::sync::OnceLock;
 
 use jni::{
     objects::{JClass, JObject, JValueGen},
+    sys::{jint, jlong},
     JNIEnv, JavaVM, NativeMethod,
 };
 
@@ -21,6 +22,17 @@ pub unsafe extern "C" fn JNI_OnLoad(
     VM.set(unsafe { JavaVM::from_raw(vm) }.unwrap()).unwrap();
     // TODO
     jni::sys::JNI_VERSION_1_6 as _
+}
+
+extern "C" fn rust_callback<'a>(
+    mut env: JNIEnv<'a>,
+    _: JObject<'a>,
+    channel_ptr: jlong,
+    _error_code: jint,
+    _failed: jint,
+    _help_code: jint,
+) {
+    log::error!("HECLRUHRLOEUHROCLEUH TESTING: {channel_ptr:#?}");
 }
 
 pub(crate) struct Policy;
@@ -69,9 +81,7 @@ pub(crate) fn blocking_authenticate(
     let biometric_prompt = construct_biometric_prompt(&mut env, &context);
 
     let class = load_callback_class(&mut env);
-
-    let constructor = get_constructor(&mut env, &class);
-    let callback_instance = construct(&mut env, constructor, allocate_channel());
+    let callback_instance = construct_callback(&mut env, &class, allocate_channel());
 
     let cancellation_signal = construct_cancellation_signal(&mut env);
     let executor = get_executor(&mut env, context);
@@ -82,8 +92,8 @@ pub(crate) fn blocking_authenticate(
         class,
         &[NativeMethod {
             name: "rustCallback".into(),
-            sig: "()V".into(),
-            fn_ptr: crate::Java_robius_authentication_AuthenticationCallback_rustCallback as *mut _,
+            sig: "(JIII)V".into(),
+            fn_ptr: rust_callback as *mut _,
         }],
     );
 
@@ -152,56 +162,17 @@ fn load_callback_class<'a>(env: &mut JNIEnv<'a>) -> JClass<'a> {
     .into()
 }
 
-fn get_constructor<'a>(env: &mut JNIEnv<'a>, callback_class: &JClass<'a>) -> JObject<'a> {
-    let constructors = env
-        .call_method(
-            callback_class,
-            "getConstructors",
-            "()[Ljava/lang/reflect/Constructor;",
-            &[],
-        )
-        .unwrap();
-
-    env.call_static_method(
-        "java/lang/reflect/Array",
-        "get",
-        "(Ljava/lang/Object;I)Ljava/lang/Object;",
-        &[constructors.borrow(), JValueGen::Int(0)],
-    )
-    .unwrap()
-    .l()
-    .unwrap()
-}
-
 fn allocate_channel() -> i64 {
     0xdeadbeef
 }
 
-fn construct<'a>(env: &mut JNIEnv<'a>, constructor: JObject<'a>, channel_ptr: i64) -> JObject<'a> {
-    let default = env
-        .call_static_method(
-            "java/lang/Long",
-            "valueOf",
-            "(J)Ljava/lang/Long;",
-            &[JValueGen::Long(channel_ptr)],
-        )
+fn construct_callback<'a>(
+    env: &mut JNIEnv<'a>,
+    class: &JClass<'a>,
+    channel_ptr: i64,
+) -> JObject<'a> {
+    env.new_object(class, "(J)V", &[JValueGen::Long(channel_ptr)])
         .unwrap()
-        .l()
-        .unwrap();
-
-    let constructor_parameters = JValueGen::Object(JObject::from(
-        env.new_object_array(1, "java/lang/Long", default).unwrap(),
-    ));
-
-    env.call_method(
-        constructor,
-        "newInstance",
-        "([Ljava/lang/Object;)Ljava/lang/Object;",
-        &[constructor_parameters.borrow()],
-    )
-    .unwrap()
-    .l()
-    .unwrap()
 }
 
 fn construct_biometric_prompt<'a>(env: &mut JNIEnv<'a>, context: &JObject<'a>) -> JObject<'a> {

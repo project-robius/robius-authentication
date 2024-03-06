@@ -11,7 +11,7 @@ mod error;
 mod sys;
 
 pub use error::{Error, Result};
-use jni::objects::JObject;
+use jni::{objects::JObject, sys::jlong};
 #[cfg(target_os = "android")]
 use jni::{
     objects::{JClass, JString},
@@ -141,15 +141,6 @@ pub async fn authenticate(message: &str, policy: &Policy) -> Result<()> {
 #[inline]
 pub fn blocking_authenticate(ctx: JObject, message: &str, policy: &Policy) -> Result<()> {
     sys::blocking_authenticate(ctx, message, &policy.inner)
-}
-
-#[cfg(target_os = "android")]
-#[no_mangle]
-pub unsafe extern "C" fn Java_robius_authentication_AuthenticationCallback_rustCallback<'a>(
-    mut env: JNIEnv<'a>,
-    _: JObject<'a>,
-) {
-    log::error!("HECLRUHRLOEUHROCLEUH TESTING");
 }
 
 #[cfg(target_os = "android")]

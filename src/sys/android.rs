@@ -1,73 +1,57 @@
-use std::sync::OnceLock;
+mod init;
 
 use jni::{
-    objects::{JClass, JObject, JValueGen},
-    sys::{jboolean, jint, jlong},
-    JNIEnv, JavaVM, NativeMethod,
+    objects::{GlobalRef, JObject, JValueGen},
+    JNIEnv,
 };
 use tokio::sync::oneshot::{Receiver, Sender};
 
 use crate::{BiometricStrength, Result};
 
-static VM: OnceLock<JavaVM> = OnceLock::new();
-
-const AUTHENTICATION_CALLBACK_BYTECODE: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/classes.dex"));
-
-#[no_mangle]
-#[doc(hidden)]
-pub unsafe extern "C" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _: std::ffi::c_void) -> jint {
-    VM.set(unsafe { JavaVM::from_raw(vm) }.unwrap()).unwrap();
-    // TODO
-    jni::sys::JNI_VERSION_1_6 as _
-}
-
-const RUST_CALLBACK_SIGNATURE: &str = "(JIZI)V";
-
-unsafe extern "C" fn rust_callback<'a>(
-    _: JNIEnv<'a>,
-    _: JObject<'a>,
-    channel_ptr: jlong,
-    error_code: jint,
-    failed: jboolean,
-    help_code: jint,
-) {
-    log::error!(
-        "rust callback invoked: {channel_ptr:#?} {error_code:#?} {failed:#?} {help_code:#?}"
-    );
-
-    let channel = unsafe { Box::from_raw(channel_ptr as *mut Sender<()>) };
-    let _ = channel.send(());
-}
-
-pub(crate) struct Policy;
+pub type Context = GlobalRef;
 
 #[derive(Debug)]
-pub(crate) struct PolicyBuilder;
+pub(crate) struct Policy {
+    strength: BiometricStrength,
+}
+
+#[derive(Debug)]
+pub(crate) struct PolicyBuilder {
+    biometrics: Option<BiometricStrength>,
+    password: bool,
+}
 
 impl PolicyBuilder {
     pub(crate) const fn new() -> Self {
-        Self
+        Self {
+            biometrics: Some(BiometricStrength::Strong),
+            password: true,
+        }
     }
 
-    pub(crate) const fn biometrics(self, _: Option<BiometricStrength>) -> Self {
-        Self
+    pub(crate) const fn biometrics(self, biometrics: Option<BiometricStrength>) -> Self {
+        Self { biometrics, ..self }
     }
 
-    pub(crate) const fn password(self, _: bool) -> Self {
-        Self
+    pub(crate) const fn password(self, password: bool) -> Self {
+        Self { password, ..self }
     }
 
     pub(crate) const fn watch(self, _: bool) -> Self {
-        Self
+        self
     }
 
     pub(crate) const fn wrist_detection(self, _: bool) -> Self {
-        Self
+        self
     }
 
     pub(crate) const fn build(self) -> Option<Policy> {
-        Some(Policy)
+        if self.password {
+            if let Some(strength) = self.biometrics {
+                return Some(Policy { strength });
+            }
+        }
+        None
     }
 }
 
@@ -94,16 +78,13 @@ pub(crate) fn blocking_authenticate(
 }
 
 fn authenticate_inner(context: JObject, _message: &str, _policy: &Policy) -> Result<Receiver<()>> {
-    let vm = VM.get().unwrap();
+    let init::State { vm, callback_class } = init::get_vm();
     let mut env = vm.get_env().unwrap();
-
-    let callback_class = load_callback_class(&mut env);
-    register_rust_callback(&mut env, &callback_class);
 
     let (tx, rx) = tokio::sync::oneshot::channel();
 
     let callback_instance =
-        construct_callback(&mut env, &callback_class, Box::into_raw(Box::new(tx)));
+        construct_callback(&mut env, callback_class, Box::into_raw(Box::new(tx)));
     let cancellation_signal = construct_cancellation_signal(&mut env);
     let executor = get_executor(&mut env, &context);
 
@@ -124,59 +105,9 @@ fn authenticate_inner(context: JObject, _message: &str, _policy: &Policy) -> Res
     Ok(rx)
 }
 
-fn load_callback_class<'a>(env: &mut JNIEnv<'a>) -> JClass<'a> {
-    const LOADER_CLASS: &str = "dalvik/system/InMemoryDexClassLoader";
-
-    let byte_buffer = unsafe {
-        env.new_direct_byte_buffer(
-            // TODO: Does AUTHENTICATION_CALLBACK_BYTECODE not need to be a static?
-            AUTHENTICATION_CALLBACK_BYTECODE.as_ptr() as *mut u8,
-            AUTHENTICATION_CALLBACK_BYTECODE.len(),
-        )
-    }
-    .unwrap();
-
-    let dex_class_loader = env
-        .new_object(
-            LOADER_CLASS,
-            "(Ljava/nio/ByteBuffer;Ljava/lang/ClassLoader;)V",
-            &[
-                JValueGen::Object(&JObject::from(byte_buffer)),
-                JValueGen::Object(&JObject::null()),
-            ],
-        )
-        .unwrap();
-
-    env.call_method(
-        &dex_class_loader,
-        "loadClass",
-        "(Ljava/lang/String;)Ljava/lang/Class;",
-        &[JValueGen::Object(&JObject::from(
-            env.new_string("robius/authentication/AuthenticationCallback")
-                .unwrap(),
-        ))],
-    )
-    .unwrap()
-    .l()
-    .unwrap()
-    .into()
-}
-
-fn register_rust_callback<'a>(env: &mut JNIEnv<'a>, callback_class: &JClass<'a>) {
-    env.register_native_methods(
-        callback_class,
-        &[NativeMethod {
-            name: "rustCallback".into(),
-            sig: RUST_CALLBACK_SIGNATURE.into(),
-            fn_ptr: rust_callback as *mut _,
-        }],
-    )
-    .unwrap();
-}
-
 fn construct_callback<'a>(
     env: &mut JNIEnv<'a>,
-    class: &JClass<'a>,
+    class: &GlobalRef,
     channel_ptr: *mut Sender<()>,
 ) -> JObject<'a> {
     env.new_object(class, "(J)V", &[JValueGen::Long(channel_ptr as i64)])

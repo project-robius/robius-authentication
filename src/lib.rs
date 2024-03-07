@@ -10,11 +10,15 @@
 mod error;
 mod sys;
 
-pub use error::{Error, Result};
 #[cfg(target_os = "android")]
 use jni::{
     objects::{JClass, JObject},
     JNIEnv,
+};
+
+pub use crate::{
+    error::{Error, Result},
+    sys::Context,
 };
 
 /// A biometric strength class.
@@ -24,10 +28,10 @@ use jni::{
 /// documentation][android-docs] for more details.
 ///
 /// [android-docs]: https://source.android.com/docs/security/features/biometric
+#[derive(Debug)]
 pub enum BiometricStrength {
     Strong,
     Weak,
-    Convenience,
 }
 
 #[derive(Debug)]
@@ -150,11 +154,11 @@ pub unsafe extern "C" fn Java_com_example_myapplication2_Test_greeting<'a>(
     _: JClass<'a>,
     input: JObject<'static>,
 ) {
-    android_logger::init_once(
-        android_logger::Config::default()
-            .with_max_level(log::LevelFilter::Error)
-            .with_tag("mytag"), // logs will show under mytag tag
-    );
+    // android_logger::init_once(
+    //     android_logger::Config::default()
+    //         .with_max_level(log::LevelFilter::Error)
+    //         .with_tag("mytag"), // logs will show under mytag tag
+    // );
 
     let policy = PolicyBuilder::new().build().unwrap();
 

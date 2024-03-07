@@ -11,6 +11,7 @@ use icrate::{
         LAErrorUserFallback, LAErrorWatchNotAvailable, LAPolicy,
     },
 };
+use objc2::rc::Id;
 use tokio::sync::oneshot;
 
 use crate::{BiometricStrength, Error, Result};
@@ -18,7 +19,7 @@ use crate::{BiometricStrength, Error, Result};
 pub(crate) type RawContext = ();
 
 pub(crate) struct Context {
-    inner: Context,
+    inner: Id<LAContext>,
 }
 
 impl Context {

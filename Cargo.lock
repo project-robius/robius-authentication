@@ -573,6 +573,7 @@ dependencies = [
  "icrate",
  "jni",
  "log",
+ "objc2",
  "polkit",
  "tokio",
  "windows",

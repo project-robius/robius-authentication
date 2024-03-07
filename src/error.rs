@@ -7,6 +7,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug)]
 pub enum Error {
     // TODO: Reexport jni::errors::Error
+    // TODO: Remove target cfg
+    #[cfg(target_os = "android")]
     Java(jni::errors::Error),
 
     // Common errors
@@ -141,6 +143,7 @@ pub enum Error {
     Unknown,
 }
 
+#[cfg(target_os = "android")]
 impl From<jni::errors::Error> for Error {
     fn from(value: jni::errors::Error) -> Self {
         Self::Java(value)

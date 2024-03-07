@@ -8,7 +8,60 @@ use tokio::sync::oneshot::{Receiver, Sender};
 
 use crate::{BiometricStrength, Error, Result};
 
-pub type Context = GlobalRef;
+pub(crate) type RawContext = GlobalRef;
+
+pub(crate) struct Context {
+    inner: GlobalRef,
+}
+
+impl Context {
+    pub(crate) fn new(inner: RawContext) -> Self {
+        Self { inner }
+    }
+
+    pub(crate) async fn authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
+        self.authenticate_inner(message, policy)?
+            .await
+            // TODO: Custom error type.
+            .map_err(|_| Error::Unknown)
+    }
+
+    pub(crate) fn blocking_authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
+        // TODO: If we actually call blocking_recv, it blocks the main thread somehow
+        // preventing the callback from being invoked and leading to deadlock.
+        self.authenticate_inner(message, policy)?;
+        // .blocking_recv()
+        // .unwrap();
+        Ok(())
+    }
+
+    fn authenticate_inner(&self, _message: &str, _policy: &Policy) -> Result<Receiver<()>> {
+        let init::State { vm, callback_class } = init::get_vm();
+        let mut env = vm.get_env()?;
+
+        let (tx, rx) = tokio::sync::oneshot::channel();
+
+        let callback_instance =
+            construct_callback(&mut env, callback_class, Box::into_raw(Box::new(tx)))?;
+        let cancellation_signal = construct_cancellation_signal(&mut env)?;
+        let executor = get_executor(&mut env, &self.inner)?;
+
+        let biometric_prompt = construct_biometric_prompt(&mut env, &self.inner)?;
+
+        env.call_method(
+            biometric_prompt,
+            "authenticate",
+            "(Landroid/os/CancellationSignal;Ljava/util/concurrent/Executor;Landroid/hardware/\
+             biometrics/BiometricPrompt$AuthenticationCallback;)V",
+            &[
+                JValueGen::Object(&cancellation_signal),
+                JValueGen::Object(&executor),
+                JValueGen::Object(&callback_instance),
+            ],
+        )?;
+        Ok(rx)
+    }
+}
 
 #[derive(Debug)]
 pub(crate) struct Policy {
@@ -55,57 +108,6 @@ impl PolicyBuilder {
     }
 }
 
-pub(crate) async fn authenticate(
-    context: JObject<'_>,
-    message: &str,
-    policy: &Policy,
-) -> Result<()> {
-    authenticate_inner(context, message, policy)?
-        .await
-        // TODO: Custom error type.
-        .map_err(|_| Error::Unknown)
-}
-
-pub(crate) fn blocking_authenticate(
-    context: JObject<'_>,
-    message: &str,
-    policy: &Policy,
-) -> Result<()> {
-    // TODO: If we actually call blocking_recv, it blocks the main thread somehow
-    // preventing the callback from being invoked and leading to deadlock.
-    authenticate_inner(context, message, policy)?;
-    // .blocking_recv()
-    // .unwrap();
-    Ok(())
-}
-
-fn authenticate_inner(context: JObject, _message: &str, _policy: &Policy) -> Result<Receiver<()>> {
-    let init::State { vm, callback_class } = init::get_vm();
-    let mut env = vm.get_env()?;
-
-    let (tx, rx) = tokio::sync::oneshot::channel();
-
-    let callback_instance =
-        construct_callback(&mut env, callback_class, Box::into_raw(Box::new(tx)))?;
-    let cancellation_signal = construct_cancellation_signal(&mut env)?;
-    let executor = get_executor(&mut env, &context)?;
-
-    let biometric_prompt = construct_biometric_prompt(&mut env, &context)?;
-
-    env.call_method(
-        biometric_prompt,
-        "authenticate",
-        "(Landroid/os/CancellationSignal;Ljava/util/concurrent/Executor;Landroid/hardware/\
-         biometrics/BiometricPrompt$AuthenticationCallback;)V",
-        &[
-            JValueGen::Object(&cancellation_signal),
-            JValueGen::Object(&executor),
-            JValueGen::Object(&callback_instance),
-        ],
-    )?;
-    Ok(rx)
-}
-
 fn construct_callback<'a>(
     env: &mut JNIEnv<'a>,
     class: &GlobalRef,
@@ -120,7 +122,7 @@ fn construct_cancellation_signal<'a>(env: &mut JNIEnv<'a>) -> Result<JObject<'a>
         .map_err(|e| e.into())
 }
 
-fn get_executor<'a>(env: &mut JNIEnv<'a>, context: &JObject<'a>) -> Result<JObject<'a>> {
+fn get_executor<'a>(env: &mut JNIEnv<'a>, context: &GlobalRef) -> Result<JObject<'a>> {
     env.call_method(
         context,
         "getMainExecutor",
@@ -133,7 +135,7 @@ fn get_executor<'a>(env: &mut JNIEnv<'a>, context: &JObject<'a>) -> Result<JObje
 
 fn construct_biometric_prompt<'a>(
     env: &mut JNIEnv<'a>,
-    context: &JObject<'a>,
+    context: &GlobalRef,
 ) -> Result<JObject<'a>> {
     let builder = env.new_object(
         "android/hardware/biometrics/BiometricPrompt$Builder",
@@ -142,7 +144,7 @@ fn construct_biometric_prompt<'a>(
     )?;
 
     // TODO: Custom title and subtitle
-    let title = env.new_string("Rust authentication prompt").unwrap();
+    let title = env.new_string("Rust authentication prompt")?;
 
     env.call_method(
         &builder,

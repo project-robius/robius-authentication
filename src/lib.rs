@@ -16,10 +16,32 @@ use jni::{
     JNIEnv,
 };
 
-pub use crate::{
-    error::{Error, Result},
-    sys::Context,
-};
+pub use crate::error::{Error, Result};
+
+pub type RawContext = sys::RawContext;
+
+pub struct Context {
+    inner: sys::Context,
+}
+
+impl Context {
+    #[inline]
+    pub fn new(raw: RawContext) -> Self {
+        Self {
+            inner: sys::Context::new(raw),
+        }
+    }
+
+    #[inline]
+    pub async fn authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
+        self.inner.authenticate(message, &policy.inner).await
+    }
+
+    #[inline]
+    pub fn blocking_authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
+        self.inner.blocking_authenticate(message, &policy.inner)
+    }
+}
 
 /// A biometric strength class.
 ///
@@ -132,37 +154,23 @@ pub struct Policy {
     inner: sys::Policy,
 }
 
-/// Asynchronously authenticate a policy.
-///
-/// Returns whether the authentication was successful.
-#[inline]
-pub async fn authenticate(ctx: JObject<'_>, message: &str, policy: &Policy) -> Result<()> {
-    sys::authenticate(ctx, message, &policy.inner).await
-}
-
-#[inline]
-pub fn blocking_authenticate(ctx: JObject, message: &str, policy: &Policy) -> Result<()> {
-    sys::blocking_authenticate(ctx, message, &policy.inner)
-}
-
 // TODO: Remove. This is only for testing.
 
 #[cfg(target_os = "android")]
 #[no_mangle]
 pub unsafe extern "C" fn Java_com_example_myapplication2_Test_greeting<'a>(
-    _: JNIEnv<'a>,
+    env: JNIEnv<'a>,
     _: JClass<'a>,
-    input: JObject<'static>,
+    context: JObject<'static>,
 ) {
-    // android_logger::init_once(
-    //     android_logger::Config::default()
-    //         .with_max_level(log::LevelFilter::Error)
-    //         .with_tag("mytag"), // logs will show under mytag tag
-    // );
+    android_logger::init_once(
+        android_logger::Config::default().with_max_level(log::LevelFilter::Error),
+    );
 
     let policy = PolicyBuilder::new().build().unwrap();
+    let input = env.new_global_ref(context).unwrap();
 
-    // If we were to await on the future, it would have to be on a different thread,
-    // as otherwise we would block the main thread causing all sorts of problems.
-    blocking_authenticate(input, "something", &policy).unwrap();
+    Context::new(input)
+        .blocking_authenticate("something", &policy)
+        .unwrap();
 }

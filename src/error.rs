@@ -6,6 +6,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// An error produced during authentication.
 #[derive(Debug)]
 pub enum Error {
+    // TODO: Reexport jni::errors::Error
+    Java(jni::errors::Error),
+
     // Common errors
     /// The user failed to provide valid credentials.
     ///
@@ -136,4 +139,10 @@ pub enum Error {
 
     /// An unknown error occurred.
     Unknown,
+}
+
+impl From<jni::errors::Error> for Error {
+    fn from(value: jni::errors::Error) -> Self {
+        Self::Java(value)
+    }
 }

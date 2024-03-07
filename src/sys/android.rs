@@ -6,7 +6,7 @@ use jni::{
 };
 use tokio::sync::oneshot::{Receiver, Sender};
 
-use crate::{BiometricStrength, Result};
+use crate::{BiometricStrength, Error, Result};
 
 pub type Context = GlobalRef;
 
@@ -60,8 +60,10 @@ pub(crate) async fn authenticate(
     message: &str,
     policy: &Policy,
 ) -> Result<()> {
-    authenticate_inner(context, message, policy)?.await.unwrap();
-    Ok(())
+    authenticate_inner(context, message, policy)?
+        .await
+        // TODO: Custom error type.
+        .map_err(|_| Error::Unknown)
 }
 
 pub(crate) fn blocking_authenticate(
@@ -79,16 +81,16 @@ pub(crate) fn blocking_authenticate(
 
 fn authenticate_inner(context: JObject, _message: &str, _policy: &Policy) -> Result<Receiver<()>> {
     let init::State { vm, callback_class } = init::get_vm();
-    let mut env = vm.get_env().unwrap();
+    let mut env = vm.get_env()?;
 
     let (tx, rx) = tokio::sync::oneshot::channel();
 
     let callback_instance =
-        construct_callback(&mut env, callback_class, Box::into_raw(Box::new(tx)));
-    let cancellation_signal = construct_cancellation_signal(&mut env);
-    let executor = get_executor(&mut env, &context);
+        construct_callback(&mut env, callback_class, Box::into_raw(Box::new(tx)))?;
+    let cancellation_signal = construct_cancellation_signal(&mut env)?;
+    let executor = get_executor(&mut env, &context)?;
 
-    let biometric_prompt = construct_biometric_prompt(&mut env, &context);
+    let biometric_prompt = construct_biometric_prompt(&mut env, &context)?;
 
     env.call_method(
         biometric_prompt,
@@ -100,8 +102,7 @@ fn authenticate_inner(context: JObject, _message: &str, _policy: &Policy) -> Res
             JValueGen::Object(&executor),
             JValueGen::Object(&callback_instance),
         ],
-    )
-    .unwrap();
+    )?;
     Ok(rx)
 }
 
@@ -109,36 +110,36 @@ fn construct_callback<'a>(
     env: &mut JNIEnv<'a>,
     class: &GlobalRef,
     channel_ptr: *mut Sender<()>,
-) -> JObject<'a> {
+) -> Result<JObject<'a>> {
     env.new_object(class, "(J)V", &[JValueGen::Long(channel_ptr as i64)])
-        .unwrap()
+        .map_err(|e| e.into())
 }
 
-fn construct_cancellation_signal<'a>(env: &mut JNIEnv<'a>) -> JObject<'a> {
+fn construct_cancellation_signal<'a>(env: &mut JNIEnv<'a>) -> Result<JObject<'a>> {
     env.new_object("android/os/CancellationSignal", "()V", &[])
-        .unwrap()
+        .map_err(|e| e.into())
 }
 
-fn get_executor<'a>(env: &mut JNIEnv<'a>, context: &JObject<'a>) -> JObject<'a> {
+fn get_executor<'a>(env: &mut JNIEnv<'a>, context: &JObject<'a>) -> Result<JObject<'a>> {
     env.call_method(
         context,
         "getMainExecutor",
         "()Ljava/util/concurrent/Executor;",
         &[],
-    )
-    .unwrap()
+    )?
     .l()
-    .unwrap()
+    .map_err(|e| e.into())
 }
 
-fn construct_biometric_prompt<'a>(env: &mut JNIEnv<'a>, context: &JObject<'a>) -> JObject<'a> {
-    let builder = env
-        .new_object(
-            "android/hardware/biometrics/BiometricPrompt$Builder",
-            "(Landroid/content/Context;)V",
-            &[JValueGen::Object(context)],
-        )
-        .unwrap();
+fn construct_biometric_prompt<'a>(
+    env: &mut JNIEnv<'a>,
+    context: &JObject<'a>,
+) -> Result<JObject<'a>> {
+    let builder = env.new_object(
+        "android/hardware/biometrics/BiometricPrompt$Builder",
+        "(Landroid/content/Context;)V",
+        &[JValueGen::Object(context)],
+    )?;
 
     // TODO: Custom title and subtitle
     let title = env.new_string("Rust authentication prompt").unwrap();
@@ -148,8 +149,7 @@ fn construct_biometric_prompt<'a>(env: &mut JNIEnv<'a>, context: &JObject<'a>) -
         "setTitle",
         "(Ljava/lang/CharSequence;)Landroid/hardware/biometrics/BiometricPrompt$Builder;",
         &[JValueGen::Object(&title)],
-    )
-    .unwrap();
+    )?;
 
     env.call_method(
         &builder,
@@ -158,16 +158,14 @@ fn construct_biometric_prompt<'a>(env: &mut JNIEnv<'a>, context: &JObject<'a>) -
         // TODO: We require password authentication for now otherwise we would also have to pass a
         // cancel callback.
         &[JValueGen::Int(0x0000000f | 0x000000ff | 0x00008000)],
-    )
-    .unwrap();
+    )?;
 
     env.call_method(
         builder,
         "build",
         "()Landroid/hardware/biometrics/BiometricPrompt;",
         &[],
-    )
-    .unwrap()
+    )?
     .l()
-    .unwrap()
+    .map_err(|e| e.into())
 }

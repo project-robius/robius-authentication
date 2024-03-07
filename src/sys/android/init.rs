@@ -7,6 +7,8 @@ use jni::{
 };
 use tokio::sync::oneshot::Sender;
 
+use crate::Result;
+
 const AUTHENTICATION_CALLBACK_BYTECODE: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/classes.dex"));
 
@@ -27,20 +29,21 @@ unsafe extern "C" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _: std::ffi::c_void) 
     }
 }
 
-fn on_load(vm: *mut jni::sys::JavaVM) -> Result<(), ()> {
-    let vm = unsafe { JavaVM::from_raw(vm) }.map_err(|_| ())?;
-    let mut env = vm.get_env().map_err(|_| ())?;
+fn on_load(vm: *mut jni::sys::JavaVM) -> Result<()> {
+    let vm = unsafe { JavaVM::from_raw(vm) }?;
+    let mut env = vm.get_env()?;
 
-    let callback_class = load_callback_class(&mut env);
-    register_rust_callback(&mut env, &callback_class);
+    let callback_class = load_callback_class(&mut env)?;
+    register_rust_callback(&mut env, &callback_class)?;
 
-    let global = env.new_global_ref(callback_class).map_err(|_| ())?;
+    let global = env.new_global_ref(callback_class)?;
 
     VM.set(State {
         vm,
         callback_class: global,
     })
-    .map_err(|_| ())?;
+    // TODO
+    .unwrap();
 
     Ok(())
 }
@@ -70,7 +73,7 @@ unsafe extern "C" fn rust_callback<'a>(
     let _ = channel.send(());
 }
 
-fn register_rust_callback<'a>(env: &mut JNIEnv<'a>, callback_class: &JClass<'a>) {
+fn register_rust_callback<'a>(env: &mut JNIEnv<'a>, callback_class: &JClass<'a>) -> Result<()> {
     env.register_native_methods(
         callback_class,
         &[NativeMethod {
@@ -79,10 +82,10 @@ fn register_rust_callback<'a>(env: &mut JNIEnv<'a>, callback_class: &JClass<'a>)
             fn_ptr: rust_callback as *mut _,
         }],
     )
-    .unwrap();
+    .map_err(|e| e.into())
 }
 
-fn load_callback_class<'a>(env: &mut JNIEnv<'a>) -> JClass<'a> {
+fn load_callback_class<'a>(env: &mut JNIEnv<'a>) -> Result<JClass<'a>> {
     const LOADER_CLASS: &str = "dalvik/system/InMemoryDexClassLoader";
 
     let byte_buffer = unsafe {
@@ -90,31 +93,27 @@ fn load_callback_class<'a>(env: &mut JNIEnv<'a>) -> JClass<'a> {
             AUTHENTICATION_CALLBACK_BYTECODE.as_ptr() as *mut u8,
             AUTHENTICATION_CALLBACK_BYTECODE.len(),
         )
-    }
-    .unwrap();
+    }?;
 
-    let dex_class_loader = env
-        .new_object(
-            LOADER_CLASS,
-            "(Ljava/nio/ByteBuffer;Ljava/lang/ClassLoader;)V",
-            &[
-                JValueGen::Object(&JObject::from(byte_buffer)),
-                JValueGen::Object(&JObject::null()),
-            ],
-        )
-        .unwrap();
+    let dex_class_loader = env.new_object(
+        LOADER_CLASS,
+        "(Ljava/nio/ByteBuffer;Ljava/lang/ClassLoader;)V",
+        &[
+            JValueGen::Object(&JObject::from(byte_buffer)),
+            JValueGen::Object(&JObject::null()),
+        ],
+    )?;
 
-    env.call_method(
-        &dex_class_loader,
-        "loadClass",
-        "(Ljava/lang/String;)Ljava/lang/Class;",
-        &[JValueGen::Object(&JObject::from(
-            env.new_string("robius/authentication/AuthenticationCallback")
-                .unwrap(),
-        ))],
-    )
-    .unwrap()
-    .l()
-    .unwrap()
-    .into()
+    Ok(env
+        .call_method(
+            &dex_class_loader,
+            "loadClass",
+            "(Ljava/lang/String;)Ljava/lang/Class;",
+            &[JValueGen::Object(&JObject::from(
+                env.new_string("robius/authentication/AuthenticationCallback")
+                    .unwrap(),
+            ))],
+        )?
+        .l()?
+        .into())
 }

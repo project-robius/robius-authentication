@@ -3,7 +3,7 @@ use jni::{
     JNIEnv,
 };
 
-use crate::{Context, PolicyBuilder};
+use crate::{ActivityObject, Context, PolicyBuilder};
 
 #[no_mangle]
 pub unsafe extern "C" fn Java_com_example_myapplication2_Test_greeting<'a>(
@@ -16,7 +16,7 @@ pub unsafe extern "C" fn Java_com_example_myapplication2_Test_greeting<'a>(
     );
 
     let policy = PolicyBuilder::new().build().unwrap();
-    let input = env.new_global_ref(context).unwrap();
+    let input = ActivityObject::GlobalRef(env.new_global_ref(context).unwrap());
 
     Context::new((env.get_java_vm().expect("couldn't get Java VM"), input))
         .blocking_authenticate("rust authentication message", &policy)

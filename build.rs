@@ -116,7 +116,5 @@ fn main() {
         //         .success(),
         //     "d8 invocation failed"
         // );
-
-        println!("cargo:warning={out_dir}");
     }
 }

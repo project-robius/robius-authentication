@@ -12,6 +12,9 @@
 mod error;
 mod sys;
 
+#[cfg(target_os = "android")]
+pub use sys::*;
+
 pub use crate::error::{Error, Result};
 
 pub type RawContext = sys::RawContext;
@@ -28,11 +31,17 @@ impl Context {
         }
     }
 
+    /// Asynchronously authenticate a policy.
+    ///
+    /// Returns whether the authentication was successful.
     #[inline]
     pub async fn authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
         self.inner.authenticate(message, &policy.inner).await
     }
 
+    /// Authenticate a policy, blocking until it completes (in a non-async context).
+    ///
+    /// Returns whether the authentication was successful.
     #[inline]
     pub fn blocking_authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
         self.inner.blocking_authenticate(message, &policy.inner)

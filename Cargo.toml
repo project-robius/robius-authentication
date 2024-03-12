@@ -5,7 +5,7 @@ edition = "2021"
 
 [lib]
 # name = "auth"
-crate-type = ["dylib"]
+# crate-type = ["dylib"]
 
 #[target.'cfg(target_os = "android")'.lib]
 #crate-type = ["dylib"]
@@ -51,3 +51,6 @@ features = [
     "Security_Credentials_UI",
 ]
 
+
+
+[features]

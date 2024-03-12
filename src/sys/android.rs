@@ -15,11 +15,20 @@ const AUTHENTICATION_CALLBACK_BYTECODE: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/classes.dex"));
 
 #[no_mangle]
+#[cfg(any(crate_type = "dylib", crate_type = "cdylib"))]
 #[doc(hidden)]
 pub unsafe extern "C" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _: std::ffi::c_void) -> jint {
     VM.set(unsafe { JavaVM::from_raw(vm) }.unwrap()).unwrap();
     // TODO
     jni::sys::JNI_VERSION_1_6 as _
+}
+
+pub unsafe fn set_java_vm(vm: *mut u8) {
+    VM.set(
+        JavaVM::from_raw(vm.cast())
+            .expect("Failed to create Java VM from raw pointer")
+    )
+    .expect("Failed to set global Java VM instance; was it already set?");
 }
 
 const RUST_CALLBACK_SIGNATURE: &str = "(JIZI)V";

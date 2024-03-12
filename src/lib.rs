@@ -12,7 +12,7 @@ mod sys;
 
 pub use error::{Error, Result};
 #[cfg(target_os = "android")]
-use jni::{
+pub use jni::{
     objects::{JClass, JObject},
     JNIEnv,
 };
@@ -132,13 +132,41 @@ pub struct Policy {
 ///
 /// Returns whether the authentication was successful.
 #[inline]
+#[cfg(not(target_os = "android"))]
+pub async fn authenticate(message: &str, policy: &Policy) -> Result<()> {
+    sys::authenticate(message, &policy.inner).await
+}
+
+/// Asynchronously authenticate a policy.
+///
+/// Returns whether the authentication was successful.
+#[cfg(target_os = "android")]
 pub async fn authenticate(ctx: JObject<'_>, message: &str, policy: &Policy) -> Result<()> {
     sys::authenticate(ctx, message, &policy.inner).await
 }
 
+#[cfg(target_os = "android")]
+pub unsafe fn set_java_vm(vm: *mut u8) {
+    sys::set_java_vm(vm);
+}
+
+/// Authenticate a policy, blocking until it completes (in a non-async context).
+///
+/// Currently we require an extra parameter `ctx` on Android, which should be
+/// a pointer to the currently-visible Activity object.
+#[cfg(target_os = "android")]
 #[inline]
-pub fn blocking_authenticate(ctx: JObject, message: &str, policy: &Policy) -> Result<()> {
+pub fn blocking_authenticate(ctx: JObject<'_>, message: &str, policy: &Policy) -> Result<()> {
     sys::blocking_authenticate(ctx, message, &policy.inner)
+}
+
+/// Authenticate a policy, blocking until it completes (in a non-async context).
+///
+/// Currently we require an extra parameter `ctx` on Android, which should be
+/// a pointer to the currently-visible Activity object.
+#[cfg(not(target_os = "android"))]
+pub fn blocking_authenticate(message: &str, policy: &Policy) -> Result<()> {
+    sys::blocking_authenticate(message, &policy.inner)
 }
 
 // TODO: Remove. This is only for testing.

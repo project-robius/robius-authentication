@@ -1,4 +1,22 @@
-use crate::{BiometricStrength, Result};
+use crate::{BiometricStrength, Error, Result};
+
+pub(crate) type RawContext = ();
+
+pub(crate) struct Context;
+
+impl Context {
+    pub(crate) fn new(_: RawContext) -> Self {
+        Self
+    }
+
+    pub(crate) async fn authenticate(&self, _: &str, _: &Policy) -> Result<()> {
+        Err(Error::Unknown)
+    }
+
+    pub(crate) fn blocking_authenticate(&self, _: &str, _: &Policy) -> Result<()> {
+        Err(Error::Unknown)
+    }
+}
 
 pub(crate) struct Policy;
 
@@ -29,12 +47,4 @@ impl PolicyBuilder {
     pub(crate) const fn build(self) -> Option<Policy> {
         None
     }
-}
-
-pub(crate) async fn authenticate(_message: &str, _policy: &Policy) -> Result<()> {
-    unimplemented!()
-}
-
-pub(crate) fn blocking_authenticate(_message: &str, _policy: &Policy) -> Result<()> {
-    unimplemented!()
 }

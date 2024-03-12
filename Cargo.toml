@@ -5,7 +5,7 @@ edition = "2021"
 
 [lib]
 # name = "auth"
-# crate-type = ["dylib"]
+#crate-type = ["dylib"]
 
 #[target.'cfg(target_os = "android")'.lib]
 #crate-type = ["dylib"]
@@ -38,6 +38,10 @@ features = [
     "LocalAuthentication_LAContext"
 ]
 
+[target.'cfg(target_vendor = "apple")'.dependencies.objc2]
+version = "0.5.0"
+default-features = false
+
 [target.'cfg(target_os = "linux")'.dependencies.polkit]
 version = "=0.17.0"
 
@@ -51,6 +55,3 @@ features = [
     "Security_Credentials_UI",
 ]
 
-
-
-[features]

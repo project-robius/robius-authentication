@@ -3,19 +3,41 @@
 //! This crate supports:
 //! - Apple. More specifically, it uses the [`LAContext`] API, so it supports
 //!   all OS versions that support [`LAContext`].
-//! - Windows.
+//! - Windows
+//! - Linux (polkit)
+//! - Android
 //!
 //! [`LAContext`]: https://developer.apple.com/documentation/localauthentication/lacontext
 
 mod error;
 mod sys;
 
-pub use error::{Error, Result};
-#[cfg(target_os = "android")]
-pub use jni::{
-    objects::{JClass, JObject},
-    JNIEnv,
-};
+pub use crate::error::{Error, Result};
+
+pub type RawContext = sys::RawContext;
+
+pub struct Context {
+    inner: sys::Context,
+}
+
+impl Context {
+    #[inline]
+    pub fn new(raw: RawContext) -> Self {
+        Self {
+            inner: sys::Context::new(raw),
+        }
+    }
+
+    #[inline]
+    pub async fn authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
+        self.inner.authenticate(message, &policy.inner).await
+    }
+
+    #[inline]
+    pub fn blocking_authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
+        self.inner.blocking_authenticate(message, &policy.inner)
+    }
+}
 
 /// A biometric strength class.
 ///
@@ -24,10 +46,10 @@ pub use jni::{
 /// documentation][android-docs] for more details.
 ///
 /// [android-docs]: https://source.android.com/docs/security/features/biometric
+#[derive(Debug)]
 pub enum BiometricStrength {
     Strong,
     Weak,
-    Convenience,
 }
 
 #[derive(Debug)]
@@ -60,15 +82,14 @@ impl PolicyBuilder {
     /// ```
     /// #![feature(const_option)]
     ///
-    /// use robius_authentication::{blocking_authenticate, BiometricStrength, Policy, PolicyBuilder};
+    /// use robius_authentication::{BiometricStrength, Context, Policy, PolicyBuilder};
     ///
     /// const POLICY: Policy = PolicyBuilder::new()
     ///     .biometrics(Some(BiometricStrength::Strong))
     ///     .build()
     ///     .expect("invalid context configuration");
     ///
-    /// // Authenticates with biometrics.
-    /// blocking_authenticate("login", &POLICY)?;
+    /// Context::new(()).authenticate("something", &POLICY).unwrap();
     /// ```
     #[inline]
     pub const fn biometrics(self, strength: Option<BiometricStrength>) -> Self {
@@ -122,71 +143,6 @@ impl PolicyBuilder {
 }
 
 /// An authentication policy.
-///
-/// # Usage
 pub struct Policy {
     inner: sys::Policy,
-}
-
-/// Asynchronously authenticate a policy.
-///
-/// Returns whether the authentication was successful.
-#[inline]
-#[cfg(not(target_os = "android"))]
-pub async fn authenticate(message: &str, policy: &Policy) -> Result<()> {
-    sys::authenticate(message, &policy.inner).await
-}
-
-/// Asynchronously authenticate a policy.
-///
-/// Returns whether the authentication was successful.
-#[cfg(target_os = "android")]
-pub async fn authenticate(ctx: JObject<'_>, message: &str, policy: &Policy) -> Result<()> {
-    sys::authenticate(ctx, message, &policy.inner).await
-}
-
-#[cfg(target_os = "android")]
-pub unsafe fn set_java_vm(vm: *mut u8) {
-    sys::set_java_vm(vm);
-}
-
-/// Authenticate a policy, blocking until it completes (in a non-async context).
-///
-/// Currently we require an extra parameter `ctx` on Android, which should be
-/// a pointer to the currently-visible Activity object.
-#[cfg(target_os = "android")]
-#[inline]
-pub fn blocking_authenticate(ctx: JObject<'_>, message: &str, policy: &Policy) -> Result<()> {
-    sys::blocking_authenticate(ctx, message, &policy.inner)
-}
-
-/// Authenticate a policy, blocking until it completes (in a non-async context).
-///
-/// Currently we require an extra parameter `ctx` on Android, which should be
-/// a pointer to the currently-visible Activity object.
-#[cfg(not(target_os = "android"))]
-pub fn blocking_authenticate(message: &str, policy: &Policy) -> Result<()> {
-    sys::blocking_authenticate(message, &policy.inner)
-}
-
-// TODO: Remove. This is only for testing.
-
-#[cfg(target_os = "android")]
-#[no_mangle]
-pub unsafe extern "C" fn Java_com_example_myapplication2_Test_greeting<'a>(
-    _: JNIEnv<'a>,
-    _: JClass<'a>,
-    input: JObject<'static>,
-) {
-    android_logger::init_once(
-        android_logger::Config::default()
-            .with_max_level(log::LevelFilter::Error)
-            .with_tag("mytag"), // logs will show under mytag tag
-    );
-
-    let policy = PolicyBuilder::new().build().unwrap();
-
-    // If we were to await on the future, it would have to be on a different thread,
-    // as otherwise we would block the main thread causing all sorts of problems.
-    blocking_authenticate(input, "something", &policy).unwrap();
 }

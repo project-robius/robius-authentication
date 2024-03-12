@@ -8,6 +8,42 @@ use windows::{
 
 use crate::{BiometricStrength, Error, Result};
 
+pub(crate) type RawContext = ();
+
+pub(crate) struct Context;
+
+impl Context {
+    pub(crate) fn new(_: RawContext) -> Self {
+        Self
+    }
+
+    pub(crate) async fn authenticate(&self, message: &str, _: &Policy) -> Result<()> {
+        // NOTE: If we don't check availability, `request_verification` will hang.
+
+        if check_availability()?.await == Ok(UserConsentVerifierAvailability::Available) {
+            convert(request_verification(message)?.await?)
+        } else {
+            // TODO: Fallback to password?
+            // https://github.com/tsoutsman/robius-authentication/blob/ddb08e75c452ece39ae9b807c7aeb21161836332/src/sys/windows.rs
+            Err(Error::Unavailable)
+        }
+    }
+
+    pub(crate) fn blocking_authenticate(&self, message: &str, _: &Policy) -> Result<()> {
+        // NOTE: If we don't check availability, `request_verification` will hang.
+
+        if check_availability()?.get() == Ok(UserConsentVerifierAvailability::Available) {
+            convert(request_verification(message)?.get()?)
+        } else {
+            // TODO: Fallback to password?
+            // https://github.com/tsoutsman/robius-authentication/blob/ddb08e75c452ece39ae9b807c7aeb21161836332/src/sys/windows.rs
+            Err(Error::Unavailable)
+        }
+    }
+}
+
+pub(crate) struct Policy;
+
 #[derive(Debug)]
 pub(crate) struct PolicyBuilder;
 
@@ -35,32 +71,6 @@ impl PolicyBuilder {
     pub(crate) const fn build(self) -> Option<Policy> {
         // TODO: Fix
         Some(Policy)
-    }
-}
-
-pub(crate) struct Policy;
-
-pub(crate) async fn authenticate(message: &str, _: &Policy) -> Result<()> {
-    // NOTE: If we don't check availability, `request_verification` will hang.
-
-    if check_availability()?.await == Ok(UserConsentVerifierAvailability::Available) {
-        convert(request_verification(message)?.await?)
-    } else {
-        // TODO: Fallback to password?
-        // https://github.com/tsoutsman/robius-authentication/blob/ddb08e75c452ece39ae9b807c7aeb21161836332/src/sys/windows.rs
-        Err(Error::Unavailable)
-    }
-}
-
-pub(crate) fn blocking_authenticate(message: &str, _: &Policy) -> Result<()> {
-    // NOTE: If we don't check availability, `request_verification` will hang.
-
-    if check_availability()?.get() == Ok(UserConsentVerifierAvailability::Available) {
-        convert(request_verification(message)?.get()?)
-    } else {
-        // TODO: Fallback to password?
-        // https://github.com/tsoutsman/robius-authentication/blob/ddb08e75c452ece39ae9b807c7aeb21161836332/src/sys/windows.rs
-        Err(Error::Unavailable)
     }
 }
 

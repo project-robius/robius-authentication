@@ -6,6 +6,11 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// An error produced during authentication.
 #[derive(Debug)]
 pub enum Error {
+    // TODO: Reexport jni::errors::Error
+    // TODO: Remove target cfg
+    #[cfg(target_os = "android")]
+    Java(jni::errors::Error),
+
     // Common errors
     /// The user failed to provide valid credentials.
     ///
@@ -110,6 +115,10 @@ pub enum Error {
     /// [Apple]: https://developer.apple.com/documentation/localauthentication/laerror/laerrorpasscodenotset
     PasscodeNotSet,
 
+    // Android-specific errors
+    UpdateRequired,
+    Timeout,
+
     // Windows-specific errors
     /// The biometric verifier device is performing an operation and is
     /// unavailable.
@@ -136,4 +145,11 @@ pub enum Error {
 
     /// An unknown error occurred.
     Unknown,
+}
+
+#[cfg(target_os = "android")]
+impl From<jni::errors::Error> for Error {
+    fn from(value: jni::errors::Error) -> Self {
+        Self::Java(value)
+    }
 }

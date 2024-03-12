@@ -11,9 +11,89 @@ use icrate::{
         LAErrorUserFallback, LAErrorWatchNotAvailable, LAPolicy,
     },
 };
+use objc2::rc::Id;
 use tokio::sync::oneshot;
 
 use crate::{BiometricStrength, Error, Result};
+
+pub(crate) type RawContext = ();
+
+pub(crate) struct Context {
+    inner: Id<LAContext>,
+}
+
+impl Context {
+    pub(crate) fn new(_: RawContext) -> Self {
+        Self {
+            inner: unsafe { LAContext::new() },
+        }
+    }
+
+    pub(crate) async fn authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
+        // The callback should always execute and hence a message will always be sent.
+        self.authenticate_inner(message, policy).await.unwrap()
+    }
+
+    pub(crate) fn blocking_authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
+        // The callback should always execute and hence a message will always be sent.
+        self.authenticate_inner(message, policy)
+            .blocking_recv()
+            .unwrap()
+    }
+
+    fn authenticate_inner(&self, message: &str, policy: &Policy) -> oneshot::Receiver<Result<()>> {
+        let (tx, rx) = oneshot::channel();
+        let unsafe_tx = MaybeUninit::new(tx);
+
+        let block = ConcreteBlock::new(move |is_success, error: *mut NSError| {
+            // SAFETY: The callback is only executed once.
+            let tx = unsafe { unsafe_tx.assume_init_read() };
+            let _ = if bool::from(is_success) {
+                tx.send(Ok(()))
+            } else {
+                let code = unsafe { &*error }.code();
+                #[allow(non_upper_case_globals)]
+                let error = match code {
+                    LAErrorAppCancel => Error::AppCanceled,
+                    LAErrorAuthenticationFailed => Error::Authentication,
+                    LAErrorBiometryDisconnected => Error::BiometryDisconnected,
+                    LAErrorBiometryLockout => Error::Exhausted,
+                    // NOTE: This is triggered when access to biometrics is denied.
+                    LAErrorBiometryNotAvailable => Error::Unavailable,
+                    LAErrorBiometryNotEnrolled => Error::NotEnrolled,
+                    LAErrorBiometryNotPaired => Error::NotPaired,
+                    // This error shouldn't occur, because we never invalidate the context.
+                    LAErrorInvalidContext => Error::Unknown,
+                    LAErrorInvalidDimensions => Error::InvalidDimensions,
+                    LAErrorNotInteractive => Error::NotInteractive,
+                    LAErrorPasscodeNotSet => Error::PasscodeNotSet,
+                    LAErrorSystemCancel => Error::SystemCanceled,
+                    LAErrorUserCancel => Error::UserCanceled,
+                    // TODO
+                    LAErrorUserFallback => Error::Unknown,
+                    LAErrorWatchNotAvailable => Error::WatchNotAvailable,
+                    _ => Error::Unknown,
+                };
+                tx.send(Err(error))
+            };
+        })
+        .copy();
+
+        unsafe {
+            self.inner.evaluatePolicy_localizedReason_reply(
+                policy.inner,
+                &NSString::from_str(message),
+                &block,
+            )
+        };
+
+        rx
+    }
+}
+
+pub struct Policy {
+    inner: LAPolicy,
+}
 
 #[derive(Debug)]
 pub(crate) struct PolicyBuilder {
@@ -111,69 +191,4 @@ impl PolicyBuilder {
         };
         Some(Policy { inner: policy })
     }
-}
-
-pub struct Policy {
-    inner: LAPolicy,
-}
-
-pub(crate) async fn authenticate(message: &str, policy: &Policy) -> Result<()> {
-    // The callback should always execute and hence a message will always be sent.
-    authenticate_inner(message, policy).await.unwrap()
-}
-
-pub(crate) fn blocking_authenticate(message: &str, policy: &Policy) -> Result<()> {
-    // The callback should always execute and hence a message will always be sent.
-    authenticate_inner(message, policy).blocking_recv().unwrap()
-}
-
-fn authenticate_inner(message: &str, policy: &Policy) -> oneshot::Receiver<Result<()>> {
-    let (tx, rx) = oneshot::channel();
-    let unsafe_tx = MaybeUninit::new(tx);
-
-    let block = ConcreteBlock::new(move |is_success, error: *mut NSError| {
-        // SAFETY: The callback is only executed once.
-        let tx = unsafe { unsafe_tx.assume_init_read() };
-        let _ = if bool::from(is_success) {
-            tx.send(Ok(()))
-        } else {
-            let code = unsafe { &*error }.code();
-            #[allow(non_upper_case_globals)]
-            let error = match code {
-                LAErrorAppCancel => Error::AppCanceled,
-                LAErrorAuthenticationFailed => Error::Authentication,
-                LAErrorBiometryDisconnected => Error::BiometryDisconnected,
-                LAErrorBiometryLockout => Error::Exhausted,
-                // NOTE: This is triggered when access to biometrics is denied.
-                LAErrorBiometryNotAvailable => Error::Unavailable,
-                LAErrorBiometryNotEnrolled => Error::NotEnrolled,
-                LAErrorBiometryNotPaired => Error::NotPaired,
-                // This error shouldn't occur, because we never invalidate the context.
-                LAErrorInvalidContext => Error::Unknown,
-                LAErrorInvalidDimensions => Error::InvalidDimensions,
-                LAErrorNotInteractive => Error::NotInteractive,
-                LAErrorPasscodeNotSet => Error::PasscodeNotSet,
-                LAErrorSystemCancel => Error::SystemCanceled,
-                LAErrorUserCancel => Error::UserCanceled,
-                // TODO
-                LAErrorUserFallback => Error::Unknown,
-                LAErrorWatchNotAvailable => Error::WatchNotAvailable,
-                _ => Error::Unknown,
-            };
-            tx.send(Err(error))
-        };
-    })
-    .copy();
-
-    let context = unsafe { LAContext::new() };
-
-    unsafe {
-        context.evaluatePolicy_localizedReason_reply(
-            policy.inner,
-            &NSString::from_str(message),
-            &block,
-        )
-    };
-
-    rx
 }

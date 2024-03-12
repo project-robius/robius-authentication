@@ -1,29 +1,35 @@
-mod init;
+mod callback;
+// TODO: Ideally we remove this whole module once we can test in Makepad.
+mod test;
 
+use callback::{Receiver, Sender};
 use jni::{
     objects::{GlobalRef, JObject, JValueGen},
-    JNIEnv,
+    JNIEnv, JavaVM,
 };
-use tokio::sync::oneshot::{Receiver, Sender};
 
 use crate::{BiometricStrength, Error, Result};
 
-pub(crate) type RawContext = GlobalRef;
+pub(crate) type RawContext = (JavaVM, GlobalRef);
 
 pub(crate) struct Context {
-    inner: GlobalRef,
+    vm: JavaVM,
+    context: GlobalRef,
 }
 
 impl Context {
     pub(crate) fn new(inner: RawContext) -> Self {
-        Self { inner }
+        let (vm, context) = inner;
+        Self { vm, context }
     }
 
     pub(crate) async fn authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
-        self.authenticate_inner(message, policy)?
-            .await
-            // TODO: Custom error type.
-            .map_err(|_| Error::Unknown)
+        // TODO: `result_flattening` feature
+        if let Ok(inner) = self.authenticate_inner(message, policy)?.await {
+            inner
+        } else {
+            Err(Error::Unknown)
+        }
     }
 
     pub(crate) fn blocking_authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
@@ -35,18 +41,19 @@ impl Context {
         Ok(())
     }
 
-    fn authenticate_inner(&self, _message: &str, _policy: &Policy) -> Result<Receiver<()>> {
-        let init::State { vm, callback_class } = init::get_vm();
-        let mut env = vm.get_env()?;
+    fn authenticate_inner(&self, _message: &str, _policy: &Policy) -> Result<Receiver> {
+        let mut env = self.vm.get_env()?;
 
-        let (tx, rx) = tokio::sync::oneshot::channel();
+        let (tx, rx) = callback::channel();
+
+        let callback_class = callback::get_callback_class(&mut env)?;
 
         let callback_instance =
             construct_callback(&mut env, callback_class, Box::into_raw(Box::new(tx)))?;
         let cancellation_signal = construct_cancellation_signal(&mut env)?;
-        let executor = get_executor(&mut env, &self.inner)?;
+        let executor = get_executor(&mut env, &self.context)?;
 
-        let biometric_prompt = construct_biometric_prompt(&mut env, &self.inner)?;
+        let biometric_prompt = construct_biometric_prompt(&mut env, &self.context)?;
 
         env.call_method(
             biometric_prompt,
@@ -59,6 +66,7 @@ impl Context {
                 JValueGen::Object(&callback_instance),
             ],
         )?;
+
         Ok(rx)
     }
 }
@@ -111,7 +119,7 @@ impl PolicyBuilder {
 fn construct_callback<'a>(
     env: &mut JNIEnv<'a>,
     class: &GlobalRef,
-    channel_ptr: *mut Sender<()>,
+    channel_ptr: *mut Sender,
 ) -> Result<JObject<'a>> {
     env.new_object(class, "(J)V", &[JValueGen::Long(channel_ptr as i64)])
         .map_err(|e| e.into())

@@ -3,18 +3,14 @@
 //! This crate supports:
 //! - Apple. More specifically, it uses the [`LAContext`] API, so it supports
 //!   all OS versions that support [`LAContext`].
-//! - Windows.
+//! - Windows
+//! - Linux (polkit)
+//! - Android
 //!
 //! [`LAContext`]: https://developer.apple.com/documentation/localauthentication/lacontext
 
 mod error;
 mod sys;
-
-#[cfg(target_os = "android")]
-use jni::{
-    objects::{JClass, JObject},
-    JNIEnv,
-};
 
 pub use crate::error::{Error, Result};
 
@@ -86,15 +82,14 @@ impl PolicyBuilder {
     /// ```
     /// #![feature(const_option)]
     ///
-    /// use robius_authentication::{blocking_authenticate, BiometricStrength, Policy, PolicyBuilder};
+    /// use robius_authentication::{BiometricStrength, Context, Policy, PolicyBuilder};
     ///
     /// const POLICY: Policy = PolicyBuilder::new()
     ///     .biometrics(Some(BiometricStrength::Strong))
     ///     .build()
     ///     .expect("invalid context configuration");
     ///
-    /// // Authenticates with biometrics.
-    /// blocking_authenticate("login", &POLICY)?;
+    /// Context::new(()).authenticate("something", &POLICY).unwrap();
     /// ```
     #[inline]
     pub const fn biometrics(self, strength: Option<BiometricStrength>) -> Self {
@@ -148,29 +143,6 @@ impl PolicyBuilder {
 }
 
 /// An authentication policy.
-///
-/// # Usage
 pub struct Policy {
     inner: sys::Policy,
-}
-
-// TODO: Remove. This is only for testing.
-
-#[cfg(target_os = "android")]
-#[no_mangle]
-pub unsafe extern "C" fn Java_com_example_myapplication2_Test_greeting<'a>(
-    env: JNIEnv<'a>,
-    _: JClass<'a>,
-    context: JObject<'static>,
-) {
-    android_logger::init_once(
-        android_logger::Config::default().with_max_level(log::LevelFilter::Error),
-    );
-
-    let policy = PolicyBuilder::new().build().unwrap();
-    let input = env.new_global_ref(context).unwrap();
-
-    Context::new(input)
-        .blocking_authenticate("something", &policy)
-        .unwrap();
 }

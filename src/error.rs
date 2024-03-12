@@ -115,6 +115,10 @@ pub enum Error {
     /// [Apple]: https://developer.apple.com/documentation/localauthentication/laerror/laerrorpasscodenotset
     PasscodeNotSet,
 
+    // Android-specific errors
+    UpdateRequired,
+    Timeout,
+
     // Windows-specific errors
     /// The biometric verifier device is performing an operation and is
     /// unavailable.

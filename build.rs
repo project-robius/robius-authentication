@@ -3,10 +3,6 @@ use std::{env, process::Command};
 fn main() {
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
 
-    for (key, value) in env::vars() {
-        eprintln!("{}: {}", key, value);
-    }
-
     if target_os == "android" {
         println!("cargo:rerun-if-changed=AuthenticationCallback.java");
 
@@ -50,19 +46,19 @@ fn main() {
             .map(|java_home| format!("{}/bin/java", java_home))
             .unwrap_or_else(|_| "java".to_string());
 
-        eprintln!("javac_path: {}", javac_path);
-        eprintln!("java_path: {}", java_path);
+        // eprintln!("javac_path: {}", javac_path);
+        // eprintln!("java_path: {}", java_path);
 
         // Compile the java_file into a class file.
         let mut javac_cmd = Command::new(&javac_path);
         javac_cmd
             .args(["-cp", &android_jar_path, &java_file, "-d", &out_dir,]);
-        eprintln!("javac_cmd: {javac_cmd:?}");
-
+        
+        // eprintln!("javac_cmd: {javac_cmd:?}");
         
         let javac_output = javac_cmd.output();
 
-        eprintln!("javac_output: {javac_output:?}");
+        // eprintln!("javac_output: {javac_output:?}");
 
         assert!(   
             javac_output
@@ -73,9 +69,6 @@ fn main() {
         );
 
         let class_file = format!("{out_dir}/robius/authentication/AuthenticationCallback.class");
-
-        eprintln!("class_file: {}", class_file);
-        eprintln!("d8_jar: {}", d8_jar_path);
 
         // Convert the class file into a dex file using d8.
         assert!(
@@ -96,25 +89,5 @@ fn main() {
                 .success(),
             "java d8.jar invocation failed"
         );
-
-
-        // // Convert the class file into a dex file using d8.
-        // let mut d8_cmd = Command::new(d8_path);
-        // d8_cmd.args(["--output", &out_dir, &class_file]);
-        // eprintln!("d8_cmd: {d8_cmd:?}");
-        // let output_res = d8_cmd.output();
-        // eprintln!("d8 output: {output_res:?}");
-        // let output = output_res.unwrap();
-        // eprintln!("\nd8 stdout:\n");
-        // use std::io::Write;
-        // std::io::stderr().write_all(&output.stdout).unwrap();
-        // eprintln!("\nd8 stderr:\n");
-        // std::io::stderr().write_all(&output.stderr).unwrap();
-        // assert!(
-        //     output
-        //         .status
-        //         .success(),
-        //     "d8 invocation failed"
-        // );
     }
 }

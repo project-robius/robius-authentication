@@ -1,6 +1,4 @@
 mod callback;
-// TODO: Ideally we remove this whole module once we can test in Makepad.
-mod test;
 
 use callback::{Receiver, Sender};
 use jni::{

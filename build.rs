@@ -12,56 +12,46 @@ fn main() {
             env::var("CARGO_MANIFEST_DIR").unwrap()
         );
 
-        let android_sdk_home_env = env::var("ANDROID_HOME")
+        let android_sdk_home = env::var("ANDROID_HOME")
             .or_else(|_| env::var("ANDROID_SDK_ROOT"))
             .expect("ANDROID_HOME or ANDROID_SDK_ROOT must be set");
-        let android_sdk_version_env = env::var("ANDROID_SDK_VERSION");
-        let android_api_level_env   = env::var("ANDROID_API_LEVEL");
-
-        let android_sdk_home        = android_sdk_home_env.as_str();
-        let android_sdk_version     = android_sdk_version_env.as_deref();
-        let android_api_level       = android_api_level_env.as_deref();
+        let android_sdk_version = env::var("ANDROID_SDK_VERSION");
+        let android_api_level = env::var("ANDROID_API_LEVEL");
 
         // Try to find the d8 jar using an env var or from the SDK root directory.
-        let d8_jar_path = env::var("ANDROID_D8_JAR").unwrap_or_else(|_|
-            format!("{android_sdk_home}/build-tools/{}/lib/d8.jar",
-                android_sdk_version.expect("ANDROID_SDK_VERSION must be set if ANDROID_D8_JAR is not set")
+        let d8_jar_path = env::var("ANDROID_D8_JAR").unwrap_or_else(|_| {
+            format!(
+                "{android_sdk_home}/build-tools/{}/lib/d8.jar",
+                android_sdk_version
+                    .expect("ANDROID_SDK_VERSION must be set if ANDROID_D8_JAR is not set")
             )
-        );
+        });
 
         // Try to find the android JAR using an env var or from the SDK root directory.
-        let android_jar_path = env::var("ANDROID_JAR").unwrap_or_else(|_|
-            format!("{android_sdk_home}/platforms/{}/android.jar",
+        let android_jar_path = env::var("ANDROID_JAR").unwrap_or_else(|_| {
+            format!(
+                "{android_sdk_home}/platforms/{}/android.jar",
                 android_api_level.expect("ANDROID_API_LEVEL must be set if ANDROID_JAR is not set"),
             )
-        );
+        });
 
-        // Try to find `javac` in "JAVA_HOME/bin/", otherwise use the `javac` in the current path.
+        // Try to find `javac` in "JAVA_HOME/bin/", otherwise use the `javac` in the
+        // current path.
         let javac_path = env::var("JAVA_HOME")
             .map(|java_home| format!("{}/bin/javac", java_home))
-            .unwrap_or_else(|_| "javac".to_string());
+            .unwrap_or_else(|_| "javac".to_owned());
 
-        // Try to find `java` in "JAVA_HOME/bin/", otherwise use the `java` in the current path.
+        // Try to find `java` in "JAVA_HOME/bin/", otherwise use the `java` in the
+        // current path.
         let java_path = env::var("JAVA_HOME")
             .map(|java_home| format!("{}/bin/java", java_home))
-            .unwrap_or_else(|_| "java".to_string());
+            .unwrap_or_else(|_| "java".to_owned());
 
-        // eprintln!("javac_path: {}", javac_path);
-        // eprintln!("java_path: {}", java_path);
-
-        // Compile the java_file into a class file.
-        let mut javac_cmd = Command::new(&javac_path);
-        javac_cmd
-            .args(["-cp", &android_jar_path, &java_file, "-d", &out_dir,]);
-        
-        // eprintln!("javac_cmd: {javac_cmd:?}");
-        
-        let javac_output = javac_cmd.output();
-
-        // eprintln!("javac_output: {javac_output:?}");
-
-        assert!(   
-            javac_output
+        // Compile the .java file into a .class file.
+        assert!(
+            Command::new(&javac_path)
+                .args(["-cp", &android_jar_path, &java_file, "-d", &out_dir])
+                .output()
                 .unwrap()
                 .status
                 .success(),
@@ -70,7 +60,7 @@ fn main() {
 
         let class_file = format!("{out_dir}/robius/authentication/AuthenticationCallback.class");
 
-        // Convert the class file into a dex file using d8.
+        // Compile the .class file into a .dex file.
         assert!(
             Command::new(java_path)
                 .args(&[
@@ -79,7 +69,7 @@ fn main() {
                     "com.android.tools.r8.D8",
                     "--classpath",
                     &android_jar_path,
-                    "--output",  
+                    "--output",
                     &out_dir,
                     &class_file,
                 ])

@@ -8,11 +8,9 @@ use jni::{
     JNIEnv, JavaVM,
 };
 
-use crate::{jni::ActivityObject, BiometricStrength, Error, Result};
+use crate::{BiometricStrength, Error, Result};
 
-// Note: we could add a <'j> lifetime param to this,
-// but then we'd have to add it to the top-level RawContext type too.
-pub(crate) type RawContext = (JavaVM, ActivityObject<'static>);
+pub(crate) type RawContext = (JavaVM, GlobalRef);
 
 pub(crate) struct Context {
     vm: JavaVM,
@@ -21,14 +19,7 @@ pub(crate) struct Context {
 
 impl Context {
     pub(crate) fn new(inner: RawContext) -> Self {
-        let (vm, activity_obj) = inner;
-        let context = match activity_obj {
-            ActivityObject::JObject(o) => {
-                let env = vm.get_env().unwrap();
-                env.new_global_ref(o).unwrap()
-            }
-            ActivityObject::GlobalRef(g) => g,
-        };
+        let (vm, context) = inner;
         Self { vm, context }
     }
 

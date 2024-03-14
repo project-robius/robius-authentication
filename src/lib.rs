@@ -164,9 +164,4 @@ pub mod jni {
         objects::{GlobalRef, JObject},
         JavaVM,
     };
-
-    pub enum ActivityObject<'j> {
-        JObject(JObject<'j>),
-        GlobalRef(GlobalRef),
-    }
 }

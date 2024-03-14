@@ -2,7 +2,7 @@ use std::sync::OnceLock;
 
 use jni::{
     objects::{GlobalRef, JClass, JObject, JValueGen},
-    sys::{jboolean, jint, jlong},
+    sys::{jint, jlong},
     JNIEnv, NativeMethod,
 };
 use tokio::sync::oneshot;
@@ -22,7 +22,7 @@ pub(super) fn channel() -> (Sender, Receiver) {
 }
 
 // NOTE: This must be kept in sync with the signature of `rust_callback`.
-const RUST_CALLBACK_SIGNATURE: &str = "(JIZI)V";
+const RUST_CALLBACK_SIGNATURE: &str = "(JII)V";
 
 // NOTE: The signature of this function must be kept in sync with
 // `RUST_CALLBACK_SIGNATURE`.
@@ -31,14 +31,11 @@ unsafe extern "C" fn rust_callback<'a>(
     _: JObject<'a>,
     channel_ptr: jlong,
     error_code: jint,
-    failed: jboolean,
     help_code: jint,
 ) {
     let channel = unsafe { Box::from_raw(channel_ptr as *mut Sender) };
 
-    if failed == 1 {
-        let _ = channel.send(Err(Error::Authentication));
-    } else if error_code != 0 {
+    if error_code != 0 {
         let _ = channel.send(Err(match error_code {
             BIOMETRIC_ERROR_CANCELED => Error::SystemCanceled,
             // TODO: Differentiate between not present and unavailable?

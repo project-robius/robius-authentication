@@ -33,12 +33,12 @@ impl Context {
     }
 
     pub(crate) fn blocking_authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
-        // TODO: If we actually call blocking_recv, it blocks the main thread somehow
-        // preventing the callback from being invoked and leading to deadlock.
-        self.authenticate_inner(message, policy)?;
-        // .blocking_recv()
-        // .unwrap();
-        Ok(())
+        // TODO: `result_flattening` feature
+        if let Ok(inner) = self.authenticate_inner(message, policy)?.blocking_recv() {
+            inner
+        } else {
+            Err(Error::Unknown)
+        }
     }
 
     fn authenticate_inner(&self, _message: &str, _policy: &Policy) -> Result<Receiver> {

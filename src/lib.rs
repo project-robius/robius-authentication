@@ -12,9 +12,6 @@
 mod error;
 mod sys;
 
-#[cfg(target_os = "android")]
-pub use sys::*;
-
 pub use crate::error::{Error, Result};
 
 pub type RawContext = sys::RawContext;
@@ -39,7 +36,8 @@ impl Context {
         self.inner.authenticate(message, &policy.inner).await
     }
 
-    /// Authenticate a policy, blocking until it completes (in a non-async context).
+    /// Authenticate a policy, blocking until it completes (in a non-async
+    /// context).
     ///
     /// Returns whether the authentication was successful.
     #[inline]
@@ -154,4 +152,21 @@ impl PolicyBuilder {
 /// An authentication policy.
 pub struct Policy {
     inner: sys::Policy,
+}
+
+// TODO: This is currently a hack so that an application crate doesn't need to
+// sync `jni` crate versions with `robius_authentication`. In future, there will
+// be a better solution.
+
+#[cfg(target_os = "android")]
+pub mod jni {
+    pub use jni::{
+        objects::{GlobalRef, JObject},
+        JavaVM,
+    };
+
+    pub enum ActivityObject<'j> {
+        JObject(JObject<'j>),
+        GlobalRef(GlobalRef),
+    }
 }

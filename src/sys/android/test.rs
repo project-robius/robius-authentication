@@ -3,7 +3,7 @@ use jni::{
     JNIEnv,
 };
 
-use crate::{ActivityObject, Context, PolicyBuilder};
+use crate::{jni::ActivityObject, Context, PolicyBuilder};
 
 #[no_mangle]
 pub unsafe extern "C" fn Java_com_example_myapplication2_Test_greeting<'a>(

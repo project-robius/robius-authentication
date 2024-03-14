@@ -2,20 +2,17 @@ mod callback;
 // TODO: Ideally we remove this whole module once we can test in Makepad.
 mod test;
 
-use crate::{BiometricStrength, Error, Result};
 use callback::{Receiver, Sender};
-use jni::{objects::JValueGen, JNIEnv};
+use jni::{
+    objects::{GlobalRef, JObject, JValueGen},
+    JNIEnv, JavaVM,
+};
 
-pub use jni::{JavaVM, objects::{GlobalRef, JObject}};
+use crate::{jni::ActivityObject, BiometricStrength, Error, Result};
 
 // Note: we could add a <'j> lifetime param to this,
 // but then we'd have to add it to the top-level RawContext type too.
 pub(crate) type RawContext = (JavaVM, ActivityObject<'static>);
-
-pub enum ActivityObject<'j> {
-    JObject(JObject<'j>),
-    GlobalRef(GlobalRef),
-}
 
 pub(crate) struct Context {
     vm: JavaVM,
@@ -26,9 +23,9 @@ impl Context {
     pub(crate) fn new(inner: RawContext) -> Self {
         let (vm, activity_obj) = inner;
         let context = match activity_obj {
-            ActivityObject::JObject(jobject) => {
+            ActivityObject::JObject(o) => {
                 let env = vm.get_env().unwrap();
-                env.new_global_ref(jobject).unwrap()
+                env.new_global_ref(o).unwrap()
             }
             ActivityObject::GlobalRef(g) => g,
         };

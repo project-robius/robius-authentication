@@ -49,7 +49,7 @@ fn main() {
 
         // Compile the .java file into a .class file.
         assert!(
-            Command::new(&javac_path)
+            Command::new(javac_path)
                 .args(["-cp", &android_jar_path, &java_file, "-d", &out_dir])
                 .output()
                 .unwrap()
@@ -63,7 +63,7 @@ fn main() {
         // Compile the .class file into a .dex file.
         assert!(
             Command::new(java_path)
-                .args(&[
+                .args([
                     "-cp",
                     &d8_jar_path,
                     "com.android.tools.r8.D8",

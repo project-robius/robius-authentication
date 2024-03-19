@@ -1,3 +1,5 @@
+/* This file is compiled by build.rs. */
+
 package robius.authentication;
 
 import android.hardware.biometrics.BiometricPrompt;

@@ -1,14 +1,16 @@
 use std::{env, process::Command};
 
+const JAVA_FILE_RELATIVE_PATH: &str = "src/sys/android/AuthenticationCallback.java";
+
 fn main() {
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
 
     if target_os == "android" {
-        println!("cargo:rerun-if-changed=AuthenticationCallback.java");
+        println!("cargo:rerun-if-changed={JAVA_FILE_RELATIVE_PATH}");
 
         let out_dir = env::var("OUT_DIR").unwrap();
         let java_file = format!(
-            "{}/AuthenticationCallback.java",
+            "{}/{JAVA_FILE_RELATIVE_PATH}",
             env::var("CARGO_MANIFEST_DIR").unwrap()
         );
 

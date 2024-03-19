@@ -1,0 +1,11 @@
+[package]
+name = "makepad_example"
+version = "0.1.0"
+authors = ["Kevin Boos <kevinaboos@gmail.com>"]
+edition = "2021"
+description = "Simple example of Robius authentication integration with Makepad"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+makepad-widgets = { git = "https://github.com/makepad/makepad.git", rev = "59df422" }
+robius-authentication = { path = "../.." }

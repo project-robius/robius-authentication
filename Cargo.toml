@@ -44,3 +44,9 @@ features = [
     "Security_Credentials_UI",
 ]
 
+[dev-dependencies]
+makepad-widgets = { git = "https://github.com/makepad/makepad.git", rev = "59df422" }
+
+#[[example]]
+#name = "makepad"
+#crate-type = ["cdylib"]

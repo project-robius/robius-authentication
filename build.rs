@@ -1,4 +1,4 @@
-use std::{env, process::Command};
+use std::{env, path::PathBuf, process::Command};
 
 const JAVA_FILE_RELATIVE_PATH: &str = "src/sys/android/AuthenticationCallback.java";
 
@@ -8,73 +8,44 @@ fn main() {
     if target_os == "android" {
         println!("cargo:rerun-if-changed={JAVA_FILE_RELATIVE_PATH}");
 
-        let out_dir = env::var("OUT_DIR").unwrap();
-        let java_file = format!(
-            "{}/{JAVA_FILE_RELATIVE_PATH}",
-            env::var("CARGO_MANIFEST_DIR").unwrap()
-        );
+        let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+        let java_file = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
+            .join(JAVA_FILE_RELATIVE_PATH);
 
-        let android_sdk_home = env::var("ANDROID_HOME")
-            .or_else(|_| env::var("ANDROID_SDK_ROOT"))
-            .expect("ANDROID_HOME or ANDROID_SDK_ROOT must be set");
-        let android_sdk_version = env::var("ANDROID_SDK_VERSION");
-        let android_api_level = env::var("ANDROID_API_LEVEL");
-
-        // Try to find the d8 jar using an env var or from the SDK root directory.
-        let d8_jar_path = env::var("ANDROID_D8_JAR").unwrap_or_else(|_| {
-            format!(
-                "{android_sdk_home}/build-tools/{}/lib/d8.jar",
-                android_sdk_version
-                    .expect("ANDROID_SDK_VERSION must be set if ANDROID_D8_JAR is not set")
-            )
-        });
-
-        // Try to find the android JAR using an env var or from the SDK root directory.
-        let android_jar_path = env::var("ANDROID_JAR").unwrap_or_else(|_| {
-            format!(
-                "{android_sdk_home}/platforms/{}/android.jar",
-                android_api_level.expect("ANDROID_API_LEVEL must be set if ANDROID_JAR is not set"),
-            )
-        });
-
-        // Try to find `javac` in "JAVA_HOME/bin/", otherwise use the `javac` in the
-        // current path.
-        let javac_path = env::var("JAVA_HOME")
-            .map(|java_home| format!("{}/bin/javac", java_home))
-            .unwrap_or_else(|_| "javac".to_owned());
-
-        // Try to find `java` in "JAVA_HOME/bin/", otherwise use the `java` in the
-        // current path.
-        let java_path = env::var("JAVA_HOME")
-            .map(|java_home| format!("{}/bin/java", java_home))
-            .unwrap_or_else(|_| "java".to_owned());
-
+        let android_jar_path = android_build::android_jar(None)
+            .expect("Failed to find android.jar");
+        
         // Compile the .java file into a .class file.
-        assert!(
-            Command::new(javac_path)
-                .args(["-cp", &android_jar_path, &java_file, "-d", &out_dir])
-                .output()
-                .unwrap()
-                .status
-                .success(),
-            "javac invocation failed"
-        );
+        let mut java_build = android_build::JavaBuild::new();
+        java_build.class_paths.push(android_jar_path.clone());
+        java_build.classes_out_dir = Some(out_dir.clone());
+        java_build.files.push(java_file);
+        eprintln!("java_build: {:?}", java_build.command());
+        java_build.compile().expect("javac invocation failed");
 
-        let class_file = format!("{out_dir}/robius/authentication/AuthenticationCallback.class");
+        let class_file = out_dir
+            .join("robius")
+            .join("authentication")
+            .join("AuthenticationCallback.class");
 
+        let d8_jar_path = android_build::android_d8_jar(None)
+            .expect("Failed to find d8.jar");
+
+        let java_path = android_build::java()
+            .expect("Failed to find the `java` executable");
+
+        // TODO: once android-build suppors running a Java command, switch to that.
         // Compile the .class file into a .dex file.
         assert!(
             Command::new(java_path)
-                .args([
-                    "-cp",
-                    &d8_jar_path,
-                    "com.android.tools.r8.D8",
-                    "--classpath",
-                    &android_jar_path,
-                    "--output",
-                    &out_dir,
-                    &class_file,
-                ])
+                .arg("-cp")
+                .arg(d8_jar_path)
+                .arg("com.android.tools.r8.D8")
+                .arg("--classpath")
+                .arg(android_jar_path)
+                .arg("--output")
+                .arg(&out_dir)
+                .arg(&class_file)
                 .output()
                 .unwrap()
                 .status

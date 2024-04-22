@@ -1,4 +1,4 @@
-use std::{env, path::PathBuf, process::Command};
+use std::{env, path::PathBuf};
 
 const JAVA_FILE_RELATIVE_PATH: &str = "src/sys/android/AuthenticationCallback.java";
 
@@ -17,10 +17,11 @@ fn main() {
         
         // Compile the .java file into a .class file.
         let mut java_build = android_build::JavaBuild::new();
-        java_build.class_paths.push(android_jar_path.clone());
-        java_build.classes_out_dir = Some(out_dir.clone());
-        java_build.files.push(java_file);
-        eprintln!("java_build: {:?}", java_build.command());
+        java_build
+            .class_path(android_jar_path.clone())
+            .classes_out_dir(out_dir.clone())
+            .file(java_file);
+        // eprintln!("java_build: {:?}", java_build.command());
         java_build.compile().expect("javac invocation failed");
 
         let class_file = out_dir
@@ -31,26 +32,16 @@ fn main() {
         let d8_jar_path = android_build::android_d8_jar(None)
             .expect("Failed to find d8.jar");
 
-        let java_path = android_build::java()
-            .expect("Failed to find the `java` executable");
-
-        // TODO: once android-build suppors running a Java command, switch to that.
-        // Compile the .class file into a .dex file.
-        assert!(
-            Command::new(java_path)
-                .arg("-cp")
-                .arg(d8_jar_path)
-                .arg("com.android.tools.r8.D8")
-                .arg("--classpath")
-                .arg(android_jar_path)
-                .arg("--output")
-                .arg(&out_dir)
-                .arg(&class_file)
-                .output()
-                .unwrap()
-                .status
-                .success(),
-            "java d8.jar invocation failed"
-        );
+        let mut java_run = android_build::JavaRun::new();
+        java_run
+            .class_path(d8_jar_path)
+            .main_class("com.android.tools.r8.D8")
+            .arg("--classpath")
+            .arg(android_jar_path)
+            .arg("--output")
+            .arg(&out_dir)
+            .arg(&class_file);
+        // eprintln!("java_run: {:?}", java_run.command());
+        java_run.run().expect("java d8.jar invocation failed");
     }
 }

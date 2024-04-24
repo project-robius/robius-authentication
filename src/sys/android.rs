@@ -3,22 +3,20 @@ mod callback;
 use callback::{Receiver, Sender};
 use jni::{
     objects::{GlobalRef, JObject, JValueGen},
-    JNIEnv, JavaVM,
+    JNIEnv,
 };
 
 use crate::{BiometricStrength, Error, Result};
 
-pub(crate) type RawContext = (JavaVM, GlobalRef);
+pub(crate) type RawContext = ();
 
-pub(crate) struct Context {
-    vm: JavaVM,
-    context: GlobalRef,
-}
+// Actual contextual info is handled by the `robius-android-env`
+// crate, so we don't have to store any state here.
+pub(crate) struct Context;
 
 impl Context {
-    pub(crate) fn new(inner: RawContext) -> Self {
-        let (vm, context) = inner;
-        Self { vm, context }
+    pub(crate) fn new(_: RawContext) -> Self {
+        Self
     }
 
     pub(crate) async fn authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
@@ -40,37 +38,39 @@ impl Context {
     }
 
     fn authenticate_inner(&self, _message: &str, _policy: &Policy) -> Result<Receiver> {
-        let mut env = self.vm.get_env()?;
+        robius_android_env::with_activity(|env, activity_jobject| {
+            let (tx, rx) = callback::channel();
 
-        let (tx, rx) = callback::channel();
+            let callback_class = callback::get_callback_class(env)?;
 
-        let callback_class = callback::get_callback_class(&mut env)?;
+            let callback_instance =
+                construct_callback(env, callback_class, Box::into_raw(Box::new(tx)))?;
+            let cancellation_signal = construct_cancellation_signal(env)?;
+            let executor = get_executor(env, activity_jobject)?;
 
-        let callback_instance =
-            construct_callback(&mut env, callback_class, Box::into_raw(Box::new(tx)))?;
-        let cancellation_signal = construct_cancellation_signal(&mut env)?;
-        let executor = get_executor(&mut env, &self.context)?;
+            let biometric_prompt = construct_biometric_prompt(env, activity_jobject)?;
 
-        let biometric_prompt = construct_biometric_prompt(&mut env, &self.context)?;
+            env.call_method(
+                biometric_prompt,
+                "authenticate",
+                "(Landroid/os/CancellationSignal;Ljava/util/concurrent/Executor;Landroid/hardware/\
+                biometrics/BiometricPrompt$AuthenticationCallback;)V",
+                &[
+                    JValueGen::Object(&cancellation_signal),
+                    JValueGen::Object(&executor),
+                    JValueGen::Object(&callback_instance),
+                ],
+            )?;
 
-        env.call_method(
-            biometric_prompt,
-            "authenticate",
-            "(Landroid/os/CancellationSignal;Ljava/util/concurrent/Executor;Landroid/hardware/\
-             biometrics/BiometricPrompt$AuthenticationCallback;)V",
-            &[
-                JValueGen::Object(&cancellation_signal),
-                JValueGen::Object(&executor),
-                JValueGen::Object(&callback_instance),
-            ],
-        )?;
-
-        Ok(rx)
+            Ok(rx)
+        })
+        .ok_or(Error::Unknown)?
     }
 }
 
 #[derive(Debug)]
 pub(crate) struct Policy {
+    #[allow(dead_code)]
     strength: BiometricStrength,
 }
 
@@ -128,7 +128,13 @@ fn construct_cancellation_signal<'a>(env: &mut JNIEnv<'a>) -> Result<JObject<'a>
         .map_err(|e| e.into())
 }
 
-fn get_executor<'a>(env: &mut JNIEnv<'a>, context: &GlobalRef) -> Result<JObject<'a>> {
+fn get_executor<'a, 'o, O>(
+    env: &mut JNIEnv<'a>,
+    context: O,
+) -> Result<JObject<'a>>
+where
+    O: AsRef<JObject<'o>>,
+{
     env.call_method(
         context,
         "getMainExecutor",
@@ -139,14 +145,17 @@ fn get_executor<'a>(env: &mut JNIEnv<'a>, context: &GlobalRef) -> Result<JObject
     .map_err(|e| e.into())
 }
 
-fn construct_biometric_prompt<'a>(
+fn construct_biometric_prompt<'a, 'o, O>(
     env: &mut JNIEnv<'a>,
-    context: &GlobalRef,
-) -> Result<JObject<'a>> {
+    context: O,
+) -> Result<JObject<'a>>
+where
+    O: AsRef<JObject<'o>>,
+{
     let builder = env.new_object(
         "android/hardware/biometrics/BiometricPrompt$Builder",
         "(Landroid/content/Context;)V",
-        &[JValueGen::Object(context)],
+        &[JValueGen::Object(context.as_ref())],
     )?;
 
     // TODO: Custom title and subtitle

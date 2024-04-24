@@ -153,15 +153,3 @@ impl PolicyBuilder {
 pub struct Policy {
     inner: sys::Policy,
 }
-
-// TODO: This is currently a hack so that an application crate doesn't need to
-// sync `jni` crate versions with `robius_authentication`. In future, there will
-// be a better solution.
-
-#[cfg(target_os = "android")]
-pub mod jni {
-    pub use jni::{
-        objects::{GlobalRef, JObject},
-        JavaVM,
-    };
-}

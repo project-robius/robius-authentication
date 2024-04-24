@@ -756,6 +756,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "robius-android-env"
+version = "0.1.0"
+source = "git+https://github.com/project-robius/robius-android-env#45acdf70ebc507a2ac017add07bec9ecd7bafa51"
+dependencies = [
+ "jni",
+]
+
+[[package]]
 name = "robius-authentication"
 version = "0.1.0"
 dependencies = [
@@ -769,6 +777,7 @@ dependencies = [
  "makepad-widgets",
  "objc2",
  "polkit",
+ "robius-android-env",
  "tokio",
  "windows",
 ]

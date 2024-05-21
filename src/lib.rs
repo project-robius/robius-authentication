@@ -4,10 +4,14 @@
 //! - Apple. More specifically, it uses the [`LAContext`] API, so it supports
 //!   all OS versions that support [`LAContext`].
 //! - Windows
-//! - Linux (polkit)
+//! - Linux ([`polkit`]). Still a work in progress.
 //! - Android
 //!
+//! # Android
+//!
+//!
 //! [`LAContext`]: https://developer.apple.com/documentation/localauthentication/lacontext
+//! [`polkit`]: https://www.freedesktop.org/software/polkit/docs/latest/polkit.8.html
 
 mod error;
 mod sys;
@@ -16,6 +20,7 @@ pub use crate::error::{Error, Result};
 
 pub type RawContext = sys::RawContext;
 
+#[derive(Debug)]
 pub struct Context {
     inner: sys::Context,
 }
@@ -28,7 +33,7 @@ impl Context {
         }
     }
 
-    /// Asynchronously authenticate a policy.
+    /// Authenticates using the provided policy and message.
     ///
     /// Returns whether the authentication was successful.
     #[inline]
@@ -36,8 +41,7 @@ impl Context {
         self.inner.authenticate(message, &policy.inner).await
     }
 
-    /// Authenticate a policy, blocking until it completes (in a non-async
-    /// context).
+    /// Authenticates using the provided policy and message.
     ///
     /// Returns whether the authentication was successful.
     #[inline]
@@ -72,6 +76,7 @@ impl Default for PolicyBuilder {
 }
 
 impl PolicyBuilder {
+    /// Returns a new policy with sane defaults.
     #[inline]
     pub const fn new() -> Self {
         Self {
@@ -86,7 +91,7 @@ impl PolicyBuilder {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// #![feature(const_option)]
     ///
     /// use robius_authentication::{BiometricStrength, Context, Policy, PolicyBuilder};
@@ -96,9 +101,12 @@ impl PolicyBuilder {
     ///     .build()
     ///     .expect("invalid context configuration");
     ///
-    /// Context::new(()).authenticate("something", &POLICY).unwrap();
+    /// Context::new(())
+    ///     .blocking_authenticate("something", &POLICY)
+    ///     .expect("authentication failed");
     /// ```
     #[inline]
+    #[must_use]
     pub const fn biometrics(self, strength: Option<BiometricStrength>) -> Self {
         Self {
             inner: self.inner.biometrics(strength),
@@ -107,6 +115,7 @@ impl PolicyBuilder {
 
     /// Sets whether the policy supports passwords.
     #[inline]
+    #[must_use]
     pub const fn password(self, password: bool) -> Self {
         Self {
             inner: self.inner.password(password),
@@ -117,6 +126,7 @@ impl PolicyBuilder {
     ///
     /// This only has an effect on iOS and macOS.
     #[inline]
+    #[must_use]
     pub const fn watch(self, watch: bool) -> Self {
         Self {
             inner: self.inner.watch(watch),
@@ -127,6 +137,7 @@ impl PolicyBuilder {
     ///
     /// This only has an effect on watchOS.
     #[inline]
+    #[must_use]
     pub const fn wrist_detection(self, wrist_detection: bool) -> Self {
         Self {
             inner: self.inner.wrist_detection(wrist_detection),
@@ -138,6 +149,7 @@ impl PolicyBuilder {
     /// Returns `None` if the specified configuration is not valid for the
     /// current target.
     #[inline]
+    #[must_use]
     pub const fn build(self) -> Option<Policy> {
         Some(Policy {
             // TODO: feature(const_try)
@@ -150,6 +162,7 @@ impl PolicyBuilder {
 }
 
 /// An authentication policy.
+#[derive(Debug)]
 pub struct Policy {
     inner: sys::Policy,
 }

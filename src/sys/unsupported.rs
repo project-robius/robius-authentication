@@ -2,6 +2,7 @@ use crate::{BiometricStrength, Error, Result};
 
 pub(crate) type RawContext = ();
 
+#[derive(Debug)]
 pub(crate) struct Context;
 
 impl Context {
@@ -18,6 +19,7 @@ impl Context {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct Policy;
 
 #[derive(Debug)]

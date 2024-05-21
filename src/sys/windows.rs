@@ -10,6 +10,7 @@ use crate::{BiometricStrength, Error, Result};
 
 pub(crate) type RawContext = ();
 
+#[derive(Debug)]
 pub(crate) struct Context;
 
 impl Context {
@@ -42,35 +43,45 @@ impl Context {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct Policy;
 
 #[derive(Debug)]
-pub(crate) struct PolicyBuilder;
+pub(crate) struct PolicyBuilder {
+    valid: bool,
+}
 
 impl PolicyBuilder {
     pub(crate) const fn new() -> Self {
-        Self
+        Self { valid: true }
     }
 
-    pub(crate) const fn biometrics(self, _: Option<BiometricStrength>) -> Self {
-        Self
+    pub(crate) const fn biometrics(self, biometrics: Option<BiometricStrength>) -> Self {
+        if biometrics.is_none() {
+            Self { valid: false }
+        }
     }
 
-    pub(crate) const fn password(self, _: bool) -> Self {
-        Self
+    pub(crate) const fn password(self, password: bool) -> Self {
+        if !password {
+            Self { valid: false }
+        }
     }
 
     pub(crate) const fn watch(self, _: bool) -> Self {
-        Self
+        self
     }
 
     pub(crate) const fn wrist_detection(self, _: bool) -> Self {
-        Self
+        self
     }
 
     pub(crate) const fn build(self) -> Option<Policy> {
-        // TODO: Fix
-        Some(Policy)
+        if self.valid {
+            Some(Policy)
+        } else {
+            None
+        }
     }
 }
 

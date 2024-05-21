@@ -371,9 +371,9 @@ checksum = "13e3bf6590cbc649f4d1a3eefc9d5d6eb746f5200ffb04e5e142700b8faa56e7"
 
 [[package]]
 name = "log"
-version = "0.4.20"
+version = "0.4.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
+checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
 name = "makepad-derive-live"
@@ -758,7 +758,8 @@ dependencies = [
 [[package]]
 name = "robius-android-env"
 version = "0.1.0"
-source = "git+https://github.com/project-robius/robius-android-env#45acdf70ebc507a2ac017add07bec9ecd7bafa51"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "312584c40c0d996c96a0c8498c6e556c38ca5785eda670ae11ba12fe2e556c4f"
 dependencies = [
  "jni",
 ]

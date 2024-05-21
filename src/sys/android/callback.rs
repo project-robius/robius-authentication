@@ -68,7 +68,7 @@ unsafe extern "C" fn rust_callback<'a>(
 
 static CALLBACK_CLASS: OnceLock<GlobalRef> = OnceLock::new();
 
-pub(super) fn get_callback_class(env: &mut JNIEnv) -> Result<&'static GlobalRef> {
+pub(super) fn get_callback_class(env: &mut JNIEnv<'_>) -> Result<&'static GlobalRef> {
     // TODO: This can be optimised when the `once_cell_try` feature is stabilised.
 
     if let Some(class) = CALLBACK_CLASS.get() {

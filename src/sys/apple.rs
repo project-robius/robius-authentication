@@ -18,6 +18,7 @@ use crate::{BiometricStrength, Error, Result};
 
 pub(crate) type RawContext = ();
 
+#[derive(Debug)]
 pub(crate) struct Context {
     inner: Id<LAContext>,
 }
@@ -91,7 +92,8 @@ impl Context {
     }
 }
 
-pub struct Policy {
+#[derive(Debug)]
+pub(crate) struct Policy {
     inner: LAPolicy,
 }
 
@@ -106,10 +108,10 @@ pub(crate) struct PolicyBuilder {
 impl PolicyBuilder {
     pub(crate) const fn new() -> Self {
         Self {
-            _biometrics: false,
-            _password: false,
-            _watch: false,
-            _wrist_detection: false,
+            _biometrics: true,
+            _password: true,
+            _watch: true,
+            _wrist_detection: true,
         }
     }
 
@@ -144,7 +146,7 @@ impl PolicyBuilder {
     pub(crate) const fn build(self) -> Option<Policy> {
         use icrate::LocalAuthentication as la;
 
-        // TODO: Test
+        // TODO: Test watchos
 
         #[cfg(target_os = "watchos")]
         let policy = match self {

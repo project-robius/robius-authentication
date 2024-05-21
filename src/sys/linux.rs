@@ -2,6 +2,7 @@ use polkit::{Authority, CheckAuthorizationFlags, Details, UnixProcess};
 
 use crate::{BiometricStrength, Result};
 
+#[derive(Debug)]
 pub struct Policy;
 
 #[derive(Debug)]

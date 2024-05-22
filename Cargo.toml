@@ -2,9 +2,23 @@
 name = "robius-authentication"
 version = "0.1.0"
 edition = "2021"
+authors = [
+    "Klim Tsoutsman <klim@tsoutsman.com>",
+    "Kevin Boos <kevinaboos@gmail.com>",
+    "Project Robius Maintainers",
+]
+description = "Rust abstractions for multi-platform native authentication: biometrics, password, TouchID, FaceID, Windows Hello, etc."
+documentation = "https://docs.rs/robius-authentication"
+homepage = "https://robius.rs/"
+keywords = ["robius", "authentication", "biometric", "password"]
+categories = ["os", "hardware-support", "api-bindings"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/project-robius/robius-authentication"
+
 
 [build-dependencies]
-android-build = { git = "https://github.com/project-robius/android-build" }
+android-build = "0.1.0"
 
 [dependencies]
 cfg-if = "1.0.0"

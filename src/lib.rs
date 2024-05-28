@@ -15,6 +15,7 @@
 
 mod error;
 mod sys;
+mod text;
 
 pub use crate::error::{Error, Result};
 
@@ -91,7 +92,7 @@ impl PolicyBuilder {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// #![feature(const_option)]
     ///
     /// use robius_authentication::{BiometricStrength, Context, Policy, PolicyBuilder};
@@ -102,7 +103,7 @@ impl PolicyBuilder {
     ///     .expect("invalid context configuration");
     ///
     /// Context::new(())
-    ///     .blocking_authenticate("something", &POLICY)
+    ///     .blocking_authenticate("authenticate", &POLICY)
     ///     .expect("authentication failed");
     /// ```
     #[inline]

@@ -39,24 +39,17 @@ impl Context {
     }
 
     fn authenticate_inner(&self, message: &str, policy: &Policy) -> Result<Receiver> {
-        log::error!("0");
         robius_android_env::with_activity(|env, context| {
             let (tx, rx) = callback::channel();
 
-            log::error!("a: {env:#?} {context:#?}");
             let callback_class = callback::get_callback_class(env)?;
 
-            log::error!("b");
             let callback_instance =
                 construct_callback(env, callback_class, Box::into_raw(Box::new(tx)))?;
-            log::error!("c");
             let cancellation_signal = construct_cancellation_signal(env)?;
-            log::error!("d");
             let executor = get_executor(env, context)?;
-            log::error!("e");
 
             let biometric_prompt = construct_biometric_prompt(env, context, policy, message)?;
-            log::error!("f");
 
             let temp = env.call_method(
                 biometric_prompt,
@@ -69,7 +62,6 @@ impl Context {
                     JValueGen::Object(&callback_instance),
                 ],
             )?;
-            log::error!("g: {temp:#?}");
 
             Ok(rx)
         })
@@ -163,21 +155,34 @@ fn construct_biometric_prompt<'a>(
     message: &str,
 ) -> Result<JObject<'a>> {
     let context = env.new_global_ref(context).unwrap();
-    log::error!("what");
+
     let builder = env.new_object(
         "android/hardware/biometrics/BiometricPrompt$Builder",
         "(Landroid/content/Context;)V",
         &[JValueGen::Object(context.as_ref())],
     )?;
 
-    // TODO: Custom title and subtitle
-    let title = env.new_string("temp")?;
+    let title = env.new_string(message)?;
+    let subtitle = env.new_string("subtitle")?;
+    let description = env.new_string("description")?;
 
     env.call_method(
         &builder,
         "setTitle",
         "(Ljava/lang/CharSequence;)Landroid/hardware/biometrics/BiometricPrompt$Builder;",
         &[JValueGen::Object(&title)],
+    )?;
+    env.call_method(
+        &builder,
+        "setSubtitle",
+        "(Ljava/lang/CharSequence;)Landroid/hardware/biometrics/BiometricPrompt$Builder;",
+        &[JValueGen::Object(&subtitle)],
+    )?;
+    env.call_method(
+        &builder,
+        "setDescription",
+        "(Ljava/lang/CharSequence;)Landroid/hardware/biometrics/BiometricPrompt$Builder;",
+        &[JValueGen::Object(&description)],
     )?;
 
     const STRONG: i32 = 0xf;

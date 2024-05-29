@@ -16,7 +16,6 @@ license = "MIT"
 readme = "README.md"
 repository = "https://github.com/project-robius/robius-authentication"
 
-
 [build-dependencies]
 android-build = "0.1.0"
 
@@ -69,9 +68,6 @@ features = [
     "Foundation",
     "Security_Credentials_UI",
 ]
-
-[dev-dependencies]
-makepad-widgets = { git = "https://github.com/makepad/makepad.git", rev = "59df422" }
 
 [features]
 default = []

@@ -115,7 +115,6 @@ impl PolicyBuilder {
     }
 
     pub(crate) const fn build(self) -> Option<Policy> {
-        // if self.password {
         if let Some(strength) = self.biometrics {
             return Some(Policy {
                 strength,
@@ -123,8 +122,6 @@ impl PolicyBuilder {
             });
         }
         None
-        // }
-        // None
     }
 }
 

@@ -2,18 +2,10 @@ use std::mem::MaybeUninit;
 #[cfg(not(feature = "async"))]
 use std::sync::mpsc as channel_impl;
 
-use block2::ConcreteBlock;
-use icrate::{
-    Foundation::{NSError, NSString},
-    LocalAuthentication::{
-        LAContext, LAErrorAppCancel, LAErrorAuthenticationFailed, LAErrorBiometryDisconnected,
-        LAErrorBiometryLockout, LAErrorBiometryNotAvailable, LAErrorBiometryNotEnrolled,
-        LAErrorBiometryNotPaired, LAErrorInvalidContext, LAErrorInvalidDimensions,
-        LAErrorNotInteractive, LAErrorPasscodeNotSet, LAErrorSystemCancel, LAErrorUserCancel,
-        LAErrorUserFallback, LAErrorWatchNotAvailable, LAPolicy,
-    },
-};
-use objc2::rc::Id;
+use block2::RcBlock;
+use objc2::rc::Retained;
+use objc2_foundation::{NSError, NSString};
+use objc2_local_authentication::{LAContext, LAError, LAPolicy};
 #[cfg(feature = "async")]
 use tokio::sync::oneshot as channel_impl;
 
@@ -23,7 +15,7 @@ pub(crate) type RawContext = ();
 
 #[derive(Debug)]
 pub(crate) struct Context {
-    inner: Id<LAContext>,
+    inner: Retained<LAContext>,
 }
 
 impl Context {
@@ -44,16 +36,19 @@ impl Context {
     }
 
     pub(crate) fn blocking_authenticate(&self, text: Text, policy: &Policy) -> Result<()> {
-        // The callback should always execute and hence a message will always be sent.
+        // The callback should always execute, hence a message will always be sent, and
+        // hence it is ok to unwrap.
         #[cfg(feature = "async")]
         {
             self.authenticate_inner(text, policy)
                 .blocking_recv()
-                .unwrap()
+                .expect("failed to receive message from authentication callback")
         }
         #[cfg(not(feature = "async"))]
         {
-            self.authenticate_inner(text, policy).recv().unwrap()
+            self.authenticate_inner(text, policy)
+                .recv()
+                .expect("failed to receive message from authentication callback")
         }
     }
 
@@ -66,7 +61,7 @@ impl Context {
         let unsafe_tx = MaybeUninit::new(tx);
         let message = text.apple;
 
-        let block = ConcreteBlock::new(move |is_success, error: *mut NSError| {
+        let block = RcBlock::new(move |is_success, error: *mut NSError| {
             // SAFETY: The callback is only executed once.
             let tx = unsafe { unsafe_tx.assume_init_read() };
             let _ = if bool::from(is_success) {
@@ -74,25 +69,25 @@ impl Context {
             } else {
                 let code = unsafe { &*error }.code();
                 #[allow(non_upper_case_globals)]
-                let error = match code {
-                    LAErrorAppCancel => Error::AppCanceled,
-                    LAErrorAuthenticationFailed => Error::Authentication,
-                    LAErrorBiometryDisconnected => Error::BiometryDisconnected,
-                    LAErrorBiometryLockout => Error::Exhausted,
+                let error = match LAError(code) {
+                    LAError::AppCancel => Error::AppCanceled,
+                    LAError::AuthenticationFailed => Error::Authentication,
+                    LAError::BiometryDisconnected => Error::BiometryDisconnected,
+                    LAError::BiometryLockout => Error::Exhausted,
                     // NOTE: This is triggered when access to biometrics is denied.
-                    LAErrorBiometryNotAvailable => Error::Unavailable,
-                    LAErrorBiometryNotEnrolled => Error::NotEnrolled,
-                    LAErrorBiometryNotPaired => Error::NotPaired,
+                    LAError::BiometryNotAvailable => Error::Unavailable,
+                    LAError::BiometryNotEnrolled => Error::NotEnrolled,
+                    LAError::BiometryNotPaired => Error::NotPaired,
                     // This error shouldn't occur, because we never invalidate the context.
-                    LAErrorInvalidContext => Error::Unknown,
-                    LAErrorInvalidDimensions => Error::InvalidDimensions,
-                    LAErrorNotInteractive => Error::NotInteractive,
-                    LAErrorPasscodeNotSet => Error::PasscodeNotSet,
-                    LAErrorSystemCancel => Error::SystemCanceled,
-                    LAErrorUserCancel => Error::UserCanceled,
+                    LAError::InvalidContext => Error::Unknown,
+                    LAError::InvalidDimensions => Error::InvalidDimensions,
+                    LAError::NotInteractive => Error::NotInteractive,
+                    LAError::PasscodeNotSet => Error::PasscodeNotSet,
+                    LAError::SystemCancel => Error::SystemCanceled,
+                    LAError::UserCancel => Error::UserCanceled,
                     // TODO
-                    LAErrorUserFallback => Error::Unknown,
-                    LAErrorWatchNotAvailable => Error::WatchNotAvailable,
+                    LAError::UserFallback => Error::Unknown,
+                    LAError::WatchNotAvailable => Error::WatchNotAvailable,
                     _ => Error::Unknown,
                 };
                 tx.send(Err(error))
@@ -164,8 +159,6 @@ impl PolicyBuilder {
     }
 
     pub(crate) const fn build(self) -> Option<Policy> {
-        use icrate::LocalAuthentication as la;
-
         // TODO: Test watchos
 
         #[cfg(target_os = "watchos")]
@@ -174,12 +167,12 @@ impl PolicyBuilder {
                 _password: true,
                 _wrist_detection: true,
                 ..
-            } => la::LAPolicyDeviceOwnerAuthenticationWithWristDetection,
+            } => LAPolicy::DeviceOwnerAuthenticationWithWristDetection,
             Self {
                 _password: true,
                 _wrist_detection: false,
                 ..
-            } => la::LAPolicyDeviceOwnerAuthentication,
+            } => LAPolicy::DeviceOwnerAuthentication,
             _ => return None,
         };
 
@@ -190,25 +183,25 @@ impl PolicyBuilder {
                 _password: true,
                 _watch: true,
                 ..
-            } => la::LAPolicyDeviceOwnerAuthentication,
+            } => LAPolicy::DeviceOwnerAuthentication,
             Self {
                 _biometrics: true,
                 _password: false,
                 _watch: true,
                 ..
-            } => la::LAPolicyDeviceOwnerAuthenticationWithBiometricsOrWatch,
+            } => LAPolicy::DeviceOwnerAuthenticationWithBiometricsOrWatch,
             Self {
                 _biometrics: true,
                 _password: false,
                 _watch: false,
                 ..
-            } => la::LAPolicyDeviceOwnerAuthenticationWithBiometrics,
+            } => LAPolicy::DeviceOwnerAuthenticationWithBiometrics,
             Self {
                 _biometrics: false,
                 _password: false,
                 _watch: true,
                 ..
-            } => la::LAPolicyDeviceOwnerAuthenticationWithWatch,
+            } => LAPolicy::DeviceOwnerAuthenticationWithWatch,
             _ => return None,
         };
         Some(Policy { inner: policy })

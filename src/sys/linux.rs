@@ -1,3 +1,5 @@
+//! This module is not public yet because it is a work in progress.
+
 use polkit::{Authority, CheckAuthorizationFlags, Details, UnixProcess};
 
 use crate::{BiometricStrength, Result};

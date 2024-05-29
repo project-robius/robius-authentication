@@ -1,14 +1,42 @@
 //! A cross-platform authentication framework.
 //!
 //! This crate supports:
-//! - Apple. More specifically, it uses the [`LAContext`] API, so it supports
-//!   all OS versions that support [`LAContext`].
-//! - Windows
-//! - Linux ([`polkit`]). Still a work in progress.
 //! - Android
+//! - Apple
+//! - Windows. Only supports devices that have biometric authentication
+//!   hardware. Password-only authentication is still a work in progress.
+// //! - Linux ([`polkit`]). Still a work in progress.
+//! # Examples
 //!
-//! # Android
+//! ```no_run
+//! #![feature(const_option)]
 //!
+//! use robius_authentication::{
+//!     AndroidText, BiometricStrength, Context, Policy, PolicyBuilder, Text,
+//! };
+//!
+//! const POLICY: Policy = PolicyBuilder::new()
+//!     .biometrics(Some(BiometricStrength::Strong))
+//!     .build()
+//!     .expect("invalid context configuration");
+//!
+//! Context::new(())
+//!     .blocking_authenticate(
+//!         Text {
+//!             android: AndroidText {
+//!                 title: "Title",
+//!                 subtitle: None,
+//!                 description: None,
+//!             },
+//!             apple: "authenticate",
+//!             windows: "authenticate",
+//!         },
+//!         &POLICY,
+//!     )
+//!     .expect("authentication failed");
+//! ```
+//!
+//! For more details about the prompt text see [`Text`].
 //!
 //! [`LAContext`]: https://developer.apple.com/documentation/localauthentication/lacontext
 //! [`polkit`]: https://www.freedesktop.org/software/polkit/docs/latest/polkit.8.html
@@ -97,23 +125,6 @@ impl PolicyBuilder {
     ///
     /// The strength only has an effect on Android, see [`BiometricStrength`]
     /// for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// #![feature(const_option)]
-    ///
-    /// use robius_authentication::{BiometricStrength, Context, Policy, PolicyBuilder};
-    ///
-    /// const POLICY: Policy = PolicyBuilder::new()
-    ///     .biometrics(Some(BiometricStrength::Strong))
-    ///     .build()
-    ///     .expect("invalid context configuration");
-    ///
-    /// Context::new(())
-    ///     .blocking_authenticate("authenticate", &POLICY)
-    ///     .expect("authentication failed");
-    /// ```
     #[inline]
     #[must_use]
     pub const fn biometrics(self, strength: Option<BiometricStrength>) -> Self {

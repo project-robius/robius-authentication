@@ -1,11 +1,11 @@
 //! A cross-platform authentication framework.
 //!
 //! This crate supports:
-//! - Android
 //! - Apple
+//! - Android: See below for additional steps.
 //! - Windows. Only supports devices that have biometric authentication
 //!   hardware. Password-only authentication is still a work in progress.
-// //! - Linux ([`polkit`]). Still a work in progress.
+//!
 //! # Examples
 //!
 //! ```no_run
@@ -37,6 +37,14 @@
 //! ```
 //!
 //! For more details about the prompt text see [`Text`].
+//!
+//! # Android
+//!
+//! For authentication to work, the following must be added to
+//! `AndroidManifest.xml`:
+//! ```xml
+//! <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+//! ```
 //!
 //! [`LAContext`]: https://developer.apple.com/documentation/localauthentication/lacontext
 //! [`polkit`]: https://www.freedesktop.org/software/polkit/docs/latest/polkit.8.html

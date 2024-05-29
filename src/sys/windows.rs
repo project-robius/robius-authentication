@@ -6,7 +6,7 @@ use windows::{
     },
 };
 
-use crate::{BiometricStrength, Error, Result};
+use crate::{BiometricStrength, Error, Result, Text};
 
 pub(crate) type RawContext = ();
 
@@ -18,11 +18,16 @@ impl Context {
         Self
     }
 
-    pub(crate) async fn authenticate(&self, message: &str, _: &Policy) -> Result<()> {
+    #[cfg(feature = "async")]
+    pub(crate) async fn authenticate(
+        &self,
+        message: Text<'_, '_, '_, '_, '_>,
+        _: &Policy,
+    ) -> Result<()> {
         // NOTE: If we don't check availability, `request_verification` will hang.
 
         if check_availability()?.await == Ok(UserConsentVerifierAvailability::Available) {
-            convert(request_verification(message)?.await?)
+            convert(request_verification(message.windows)?.await?)
         } else {
             // TODO: Fallback to password?
             // https://github.com/tsoutsman/robius-authentication/blob/ddb08e75c452ece39ae9b807c7aeb21161836332/src/sys/windows.rs
@@ -30,11 +35,11 @@ impl Context {
         }
     }
 
-    pub(crate) fn blocking_authenticate(&self, message: &str, _: &Policy) -> Result<()> {
+    pub(crate) fn blocking_authenticate(&self, message: Text, _: &Policy) -> Result<()> {
         // NOTE: If we don't check availability, `request_verification` will hang.
 
         if check_availability()?.get() == Ok(UserConsentVerifierAvailability::Available) {
-            convert(request_verification(message)?.get()?)
+            convert(request_verification(message.windows)?.get()?)
         } else {
             // TODO: Fallback to password?
             // https://github.com/tsoutsman/robius-authentication/blob/ddb08e75c452ece39ae9b807c7aeb21161836332/src/sys/windows.rs
@@ -59,11 +64,15 @@ impl PolicyBuilder {
     pub(crate) const fn biometrics(self, biometrics: Option<BiometricStrength>) -> Self {
         if biometrics.is_none() {
             Self { valid: false }
+        } else {
+            self
         }
     }
 
     pub(crate) const fn password(self, password: bool) -> Self {
-        if !password {
+        if password {
+            self
+        } else {
             Self { valid: false }
         }
     }

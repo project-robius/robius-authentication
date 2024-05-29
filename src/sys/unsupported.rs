@@ -1,4 +1,4 @@
-use crate::{BiometricStrength, Error, Result};
+use crate::{BiometricStrength, Error, Result, Text};
 
 pub(crate) type RawContext = ();
 
@@ -10,11 +10,12 @@ impl Context {
         Self
     }
 
-    pub(crate) async fn authenticate(&self, _: &str, _: &Policy) -> Result<()> {
+    #[cfg(feature = "async")]
+    pub(crate) async fn authenticate(&self, _: Text<'_, '_, '_, '_, '_>, _: &Policy) -> Result<()> {
         Err(Error::Unknown)
     }
 
-    pub(crate) fn blocking_authenticate(&self, _: &str, _: &Policy) -> Result<()> {
+    pub(crate) fn blocking_authenticate(&self, _: Text, _: &Policy) -> Result<()> {
         Err(Error::Unknown)
     }
 }

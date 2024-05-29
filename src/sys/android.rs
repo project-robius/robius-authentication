@@ -6,7 +6,7 @@ use jni::{
     JNIEnv,
 };
 
-use crate::{BiometricStrength, Error, Result};
+use crate::{BiometricStrength, Error, Result, Text};
 
 pub(crate) type RawContext = ();
 
@@ -20,25 +20,33 @@ impl Context {
         Self
     }
 
-    pub(crate) async fn authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
-        // TODO: `result_flattening` feature
-        if let Ok(inner) = self.authenticate_inner(message, policy)?.await {
+    #[cfg(feature = "async")]
+    pub(crate) async fn authenticate(
+        &self,
+        text: Text<'_, '_, '_, '_, '_>,
+        policy: &Policy,
+    ) -> Result<()> {
+        if let Ok(inner) = self.authenticate_inner(text, policy)?.await {
             inner
         } else {
             Err(Error::Unknown)
         }
     }
 
-    pub(crate) fn blocking_authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
-        // TODO: `result_flattening` feature
-        if let Ok(inner) = self.authenticate_inner(message, policy)?.blocking_recv() {
+    pub(crate) fn blocking_authenticate(&self, text: Text, policy: &Policy) -> Result<()> {
+        #[cfg(feature = "async")]
+        let result = self.authenticate_inner(text, policy)?.blocking_recv();
+        #[cfg(not(feature = "async"))]
+        let result = self.authenticate_inner(text, policy)?.recv();
+
+        if let Ok(inner) = result {
             inner
         } else {
             Err(Error::Unknown)
         }
     }
 
-    fn authenticate_inner(&self, message: &str, policy: &Policy) -> Result<Receiver> {
+    fn authenticate_inner(&self, text: Text, policy: &Policy) -> Result<Receiver> {
         robius_android_env::with_activity(|env, context| {
             let (tx, rx) = callback::channel();
 
@@ -49,9 +57,9 @@ impl Context {
             let cancellation_signal = construct_cancellation_signal(env)?;
             let executor = get_executor(env, context)?;
 
-            let biometric_prompt = construct_biometric_prompt(env, context, policy, message)?;
+            let biometric_prompt = construct_biometric_prompt(env, context, policy, &text)?;
 
-            let temp = env.call_method(
+            env.call_method(
                 biometric_prompt,
                 "authenticate",
                 "(Landroid/os/CancellationSignal;Ljava/util/concurrent/Executor;Landroid/hardware/\
@@ -152,7 +160,7 @@ fn construct_biometric_prompt<'a>(
     env: &mut JNIEnv<'a>,
     context: &JObject<'_>,
     policy: &Policy,
-    message: &str,
+    text: &Text,
 ) -> Result<JObject<'a>> {
     let context = env.new_global_ref(context).unwrap();
 
@@ -162,54 +170,45 @@ fn construct_biometric_prompt<'a>(
         &[JValueGen::Object(context.as_ref())],
     )?;
 
-    let title = env.new_string(message)?;
-    let subtitle = env.new_string("subtitle")?;
-    let description = env.new_string("description")?;
-
     env.call_method(
         &builder,
         "setTitle",
         "(Ljava/lang/CharSequence;)Landroid/hardware/biometrics/BiometricPrompt$Builder;",
-        &[JValueGen::Object(&title)],
-    )?;
-    env.call_method(
-        &builder,
-        "setSubtitle",
-        "(Ljava/lang/CharSequence;)Landroid/hardware/biometrics/BiometricPrompt$Builder;",
-        &[JValueGen::Object(&subtitle)],
-    )?;
-    env.call_method(
-        &builder,
-        "setDescription",
-        "(Ljava/lang/CharSequence;)Landroid/hardware/biometrics/BiometricPrompt$Builder;",
-        &[JValueGen::Object(&description)],
+        &[JValueGen::Object(
+            &env.new_string(text.android.title)?.into(),
+        )],
     )?;
 
+    if let Some(subtitle) = text.android.subtitle {
+        env.call_method(
+            &builder,
+            "setSubtitle",
+            "(Ljava/lang/CharSequence;)Landroid/hardware/biometrics/BiometricPrompt$Builder;",
+            &[JValueGen::Object(&env.new_string(subtitle)?.into())],
+        )?;
+    }
+    if let Some(description) = text.android.description {
+        env.call_method(
+            &builder,
+            "setDescription",
+            "(Ljava/lang/CharSequence;)Landroid/hardware/biometrics/BiometricPrompt$Builder;",
+            &[JValueGen::Object(&env.new_string(description)?.into())],
+        )?;
+    }
     const STRONG: i32 = 0xf;
     const WEAK: i32 = 0xff;
-    // TODO: We require password authentication for now otherwise we would also have
-    // to pass a cancel callback.
     const CREDENTIAL: i32 = 0x8000;
 
-    // env.call_method(
-    //     &builder,
-    //     "setAllowedAuthenticators",
-    //     "(I)Landroid/hardware/biometrics/BiometricPrompt$Builder;",
-    //     &[JValueGen::Int(
-    //         match policy.strength {
-    //             BiometricStrength::Strong => STRONG,
-    //             BiometricStrength::Weak => WEAK,
-    //         } | if policy.password { CREDENTIAL } else { 0 }
-    //             | 0x80ff,
-    //     )],
-    // )?;
     env.call_method(
         &builder,
         "setAllowedAuthenticators",
         "(I)Landroid/hardware/biometrics/BiometricPrompt$Builder;",
-        // TODO: We require password authentication for now otherwise we would also have to pass a
-        // cancel callback.
-        &[JValueGen::Int(0x0000000f | 0x000000ff | 0x00008000)],
+        &[JValueGen::Int(
+            match policy.strength {
+                BiometricStrength::Strong => STRONG,
+                BiometricStrength::Weak => WEAK,
+            } | if policy.password { CREDENTIAL } else { 0 },
+        )],
     )?;
 
     env.call_method(

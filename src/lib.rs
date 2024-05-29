@@ -17,7 +17,10 @@ mod error;
 mod sys;
 mod text;
 
-pub use crate::error::{Error, Result};
+pub use crate::{
+    error::{Error, Result},
+    text::{AndroidText, Text},
+};
 
 pub type RawContext = sys::RawContext;
 
@@ -38,7 +41,12 @@ impl Context {
     ///
     /// Returns whether the authentication was successful.
     #[inline]
-    pub async fn authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
+    #[cfg(feature = "async")]
+    pub async fn authenticate(
+        &self,
+        message: Text<'_, '_, '_, '_, '_>,
+        policy: &Policy,
+    ) -> Result<()> {
         self.inner.authenticate(message, &policy.inner).await
     }
 
@@ -46,7 +54,7 @@ impl Context {
     ///
     /// Returns whether the authentication was successful.
     #[inline]
-    pub fn blocking_authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
+    pub fn blocking_authenticate(&self, message: Text, policy: &Policy) -> Result<()> {
         self.inner.blocking_authenticate(message, &policy.inner)
     }
 }

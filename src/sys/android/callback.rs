@@ -1,3 +1,5 @@
+#[cfg(not(feature = "async"))]
+use std::sync::mpsc as channel_impl;
 use std::sync::OnceLock;
 
 use jni::{
@@ -5,7 +7,8 @@ use jni::{
     sys::{jint, jlong},
     JNIEnv, NativeMethod,
 };
-use tokio::sync::oneshot;
+#[cfg(feature = "async")]
+use tokio::sync::oneshot as channel_impl;
 
 use crate::{Error, Result};
 
@@ -14,11 +17,11 @@ const AUTHENTICATION_CALLBACK_BYTECODE: &[u8] =
 
 type ChannelData = Result<()>;
 
-pub(super) type Receiver = oneshot::Receiver<ChannelData>;
-pub(super) type Sender = oneshot::Sender<ChannelData>;
+pub(super) type Receiver = channel_impl::Receiver<ChannelData>;
+pub(super) type Sender = channel_impl::Sender<ChannelData>;
 
 pub(super) fn channel() -> (Sender, Receiver) {
-    oneshot::channel()
+    channel_impl::channel()
 }
 
 // NOTE: This must be kept in sync with the signature of `rust_callback`.

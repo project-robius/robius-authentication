@@ -1,6 +1,6 @@
 // #![feature(const_option)]
 
-use robius_authentication::{BiometricStrength, Context, PolicyBuilder};
+use robius_authentication::{AndroidText, BiometricStrength, Context, PolicyBuilder, Text};
 
 fn main() {
     let policy = PolicyBuilder::new()
@@ -13,7 +13,18 @@ fn main() {
     let context = Context::new(());
 
     if context
-        .blocking_authenticate("verify your identity", &policy)
+        .blocking_authenticate(
+            Text {
+                android: AndroidText {
+                    title: "Title",
+                    subtitle: None,
+                    description: None,
+                },
+                apple: "authenticate",
+                windows: "authenticate",
+            },
+            &policy,
+        )
         .is_ok()
     {
         println!("Authorized");

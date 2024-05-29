@@ -1,4 +1,6 @@
 use std::mem::MaybeUninit;
+#[cfg(not(feature = "async"))]
+use std::sync::mpsc as channel_impl;
 
 use block2::ConcreteBlock;
 use icrate::{
@@ -12,9 +14,10 @@ use icrate::{
     },
 };
 use objc2::rc::Id;
-use tokio::sync::oneshot;
+#[cfg(feature = "async")]
+use tokio::sync::oneshot as channel_impl;
 
-use crate::{BiometricStrength, Error, Result};
+use crate::{BiometricStrength, Error, Result, Text};
 
 pub(crate) type RawContext = ();
 
@@ -30,21 +33,38 @@ impl Context {
         }
     }
 
-    pub(crate) async fn authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
+    #[cfg(feature = "async")]
+    pub(crate) async fn authenticate(
+        &self,
+        text: Text<'_, '_, '_, '_, '_>,
+        policy: &Policy,
+    ) -> Result<()> {
         // The callback should always execute and hence a message will always be sent.
-        self.authenticate_inner(message, policy).await.unwrap()
+        self.authenticate_inner(text, policy).await.unwrap()
     }
 
-    pub(crate) fn blocking_authenticate(&self, message: &str, policy: &Policy) -> Result<()> {
+    pub(crate) fn blocking_authenticate(&self, text: Text, policy: &Policy) -> Result<()> {
         // The callback should always execute and hence a message will always be sent.
-        self.authenticate_inner(message, policy)
-            .blocking_recv()
-            .unwrap()
+        #[cfg(feature = "async")]
+        {
+            self.authenticate_inner(text, policy)
+                .blocking_recv()
+                .unwrap()
+        }
+        #[cfg(not(feature = "async"))]
+        {
+            self.authenticate_inner(text, policy).recv().unwrap()
+        }
     }
 
-    fn authenticate_inner(&self, message: &str, policy: &Policy) -> oneshot::Receiver<Result<()>> {
-        let (tx, rx) = oneshot::channel();
+    fn authenticate_inner(
+        &self,
+        text: Text<'_, '_, '_, '_, '_>,
+        policy: &Policy,
+    ) -> channel_impl::Receiver<Result<()>> {
+        let (tx, rx) = channel_impl::channel();
         let unsafe_tx = MaybeUninit::new(tx);
+        let message = text.apple;
 
         let block = ConcreteBlock::new(move |is_success, error: *mut NSError| {
             // SAFETY: The callback is only executed once.

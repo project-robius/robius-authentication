@@ -1,8 +1,9 @@
 use windows::{
-    core::HSTRING,
+    core::{factory, HSTRING},
     Foundation::IAsyncOperation,
-    Security::Credentials::UI::{
-        UserConsentVerificationResult, UserConsentVerifier, UserConsentVerifierAvailability,
+    Security::Credentials::UI::{UserConsentVerificationResult, UserConsentVerifier},
+    Win32::{
+        System::WinRT::IUserConsentVerifierInterop, UI::WindowsAndMessaging::GetDesktopWindow,
     },
 };
 
@@ -21,30 +22,18 @@ impl Context {
     #[cfg(feature = "async")]
     pub(crate) async fn authenticate(
         &self,
-        message: Text<'_, '_, '_, '_, '_>,
+        text: Text<'_, '_, '_, '_, '_>,
         _: &Policy,
     ) -> Result<()> {
-        // NOTE: If we don't check availability, `request_verification` will hang.
-
-        if check_availability()?.await == Ok(UserConsentVerifierAvailability::Available) {
-            convert(request_verification(message.windows)?.await?)
-        } else {
-            // TODO: Fallback to password?
-            // https://github.com/tsoutsman/robius-authentication/blob/ddb08e75c452ece39ae9b807c7aeb21161836332/src/sys/windows.rs
-            Err(Error::Unavailable)
-        }
+        convert(request_verification(text.windows)?.await?)
+        // TODO: Fallback to password if unavailable?
+        // https://github.com/tsoutsman/robius-authentication/blob/ddb08e75c452ece39ae9b807c7aeb21161836332/src/sys/windows.rs
     }
 
-    pub(crate) fn blocking_authenticate(&self, message: Text, _: &Policy) -> Result<()> {
-        // NOTE: If we don't check availability, `request_verification` will hang.
-
-        if check_availability()?.get() == Ok(UserConsentVerifierAvailability::Available) {
-            convert(request_verification(message.windows)?.get()?)
-        } else {
-            // TODO: Fallback to password?
-            // https://github.com/tsoutsman/robius-authentication/blob/ddb08e75c452ece39ae9b807c7aeb21161836332/src/sys/windows.rs
-            Err(Error::Unavailable)
-        }
+    pub(crate) fn blocking_authenticate(&self, text: Text, _: &Policy) -> Result<()> {
+        convert(request_verification(text.windows)?.get()?)
+        // TODO: Fallback to password?
+        // https://github.com/tsoutsman/robius-authentication/blob/ddb08e75c452ece39ae9b807c7aeb21161836332/src/sys/windows.rs
     }
 }
 
@@ -94,15 +83,20 @@ impl PolicyBuilder {
     }
 }
 
-fn check_availability() -> Result<IAsyncOperation<UserConsentVerifierAvailability>> {
-    UserConsentVerifier::CheckAvailabilityAsync().map_err(|e| e.into())
-}
-
 fn request_verification(message: &str) -> Result<IAsyncOperation<UserConsentVerificationResult>> {
+    let window = unsafe { GetDesktopWindow() };
     let caption = caption(message);
 
-    UserConsentVerifier::RequestVerificationAsync(&HSTRING::from_wide(&caption[..])?)
-        .map_err(|e| e.into())
+    let factory = factory::<UserConsentVerifier, IUserConsentVerifierInterop>()?;
+
+    unsafe {
+        IUserConsentVerifierInterop::RequestVerificationForWindowAsync(
+            &factory,
+            window,
+            &HSTRING::from_wide(&caption[..])?,
+        )
+    }
+    .map_err(|e| e.into())
 }
 
 fn caption(message: &str) -> Vec<u16> {

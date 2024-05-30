@@ -1,3 +1,5 @@
+mod fallback;
+
 use windows::{
     core::HSTRING,
     Foundation::IAsyncOperation,
@@ -6,7 +8,7 @@ use windows::{
     },
 };
 
-use crate::{BiometricStrength, Error, Result, Text};
+use crate::{text::WindowsText, BiometricStrength, Error, Result, Text};
 
 pub(crate) type RawContext = ();
 
@@ -21,29 +23,35 @@ impl Context {
     #[cfg(feature = "async")]
     pub(crate) async fn authenticate(
         &self,
-        message: Text<'_, '_, '_, '_, '_>,
+        message: Text<'_, '_, '_, '_, '_, '_>,
         _: &Policy,
     ) -> Result<()> {
         // NOTE: If we don't check availability, `request_verification` will hang.
+        #[cfg(not(feature = "winrt"))]
+        let available =
+            check_availability()?.await == Ok(UserConsentVerifierAvailability::Available);
+        #[cfg(feature = "winrt")]
+        let available = true;
 
-        if check_availability()?.await == Ok(UserConsentVerifierAvailability::Available) {
+        if available {
             convert(request_verification(message.windows)?.await?)
         } else {
-            // TODO: Fallback to password?
-            // https://github.com/tsoutsman/robius-authentication/blob/ddb08e75c452ece39ae9b807c7aeb21161836332/src/sys/windows.rs
-            Err(Error::Unavailable)
+            fallback::authenticate(message.windows)
         }
     }
 
     pub(crate) fn blocking_authenticate(&self, message: Text, _: &Policy) -> Result<()> {
         // NOTE: If we don't check availability, `request_verification` will hang.
+        #[cfg(not(feature = "winrt"))]
+        let available =
+            check_availability()?.get() == Ok(UserConsentVerifierAvailability::Available);
+        #[cfg(feature = "winrt")]
+        let available = true;
 
-        if check_availability()?.get() == Ok(UserConsentVerifierAvailability::Available) {
+        if available {
             convert(request_verification(message.windows)?.get()?)
         } else {
-            // TODO: Fallback to password?
-            // https://github.com/tsoutsman/robius-authentication/blob/ddb08e75c452ece39ae9b807c7aeb21161836332/src/sys/windows.rs
-            Err(Error::Unavailable)
+            fallback::authenticate(message.windows)
         }
     }
 }
@@ -94,15 +102,45 @@ impl PolicyBuilder {
     }
 }
 
+#[cfg(not(feature = "winrt"))]
 fn check_availability() -> Result<IAsyncOperation<UserConsentVerifierAvailability>> {
     UserConsentVerifier::CheckAvailabilityAsync().map_err(|e| e.into())
 }
 
-fn request_verification(message: &str) -> Result<IAsyncOperation<UserConsentVerificationResult>> {
-    let caption = caption(message);
+#[cfg(not(feature = "winrt"))]
+fn request_verification(
+    text: WindowsText,
+) -> Result<IAsyncOperation<UserConsentVerificationResult>> {
+    let caption = caption(text.description);
 
     UserConsentVerifier::RequestVerificationAsync(&HSTRING::from_wide(&caption[..])?)
         .map_err(|e| e.into())
+}
+
+#[cfg(feature = "winrt")]
+fn request_verification(
+    text: WindowsText,
+) -> Result<IAsyncOperation<UserConsentVerificationResult>> {
+    use windows::{
+        core::factory,
+        Win32::{
+            System::WinRT::IUserConsentVerifierInterop, UI::WindowsAndMessaging::GetDesktopWindow,
+        },
+    };
+
+    let window = unsafe { GetDesktopWindow() };
+    let caption = caption(text.description);
+
+    let factory = factory::<UserConsentVerifier, IUserConsentVerifierInterop>()?;
+
+    unsafe {
+        IUserConsentVerifierInterop::RequestVerificationForWindowAsync(
+            &factory,
+            window,
+            &HSTRING::from_wide(&caption[..])?,
+        )
+    }
+    .map_err(|e| e.into())
 }
 
 fn caption(message: &str) -> Vec<u16> {

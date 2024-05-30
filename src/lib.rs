@@ -12,27 +12,28 @@
 //! #![feature(const_option)]
 //!
 //! use robius_authentication::{
-//!     AndroidText, BiometricStrength, Context, Policy, PolicyBuilder, Text,
+//!     AndroidText, BiometricStrength, Context, Policy, PolicyBuilder, Text, WindowsText,
 //! };
 //!
 //! const POLICY: Policy = PolicyBuilder::new()
 //!     .biometrics(Some(BiometricStrength::Strong))
+//!     .password(true)
+//!     .watch(true)
 //!     .build()
-//!     .expect("invalid context configuration");
+//!     .unwrap();
+//!
+//! const TEXT: Text = Text {
+//!     android: AndroidText {
+//!         title: "Title",
+//!         subtitle: None,
+//!         description: None,
+//!     },
+//!     apple: "authenticate",
+//!     windows: WindowsText::new("Title", "Description").unwrap(),
+//! };
 //!
 //! Context::new(())
-//!     .blocking_authenticate(
-//!         Text {
-//!             android: AndroidText {
-//!                 title: "Title",
-//!                 subtitle: None,
-//!                 description: None,
-//!             },
-//!             apple: "authenticate",
-//!             windows: "authenticate",
-//!         },
-//!         &POLICY,
-//!     )
+//!     .blocking_authenticate(TEXT, &POLICY)
 //!     .expect("authentication failed");
 //! ```
 //!
@@ -55,7 +56,7 @@ mod text;
 
 pub use crate::{
     error::{Error, Result},
-    text::{AndroidText, Text},
+    text::{AndroidText, Text, WindowsText},
 };
 
 pub type RawContext = sys::RawContext;
@@ -80,7 +81,7 @@ impl Context {
     #[cfg(feature = "async")]
     pub async fn authenticate(
         &self,
-        message: Text<'_, '_, '_, '_, '_>,
+        message: Text<'_, '_, '_, '_, '_, '_>,
         policy: &Policy,
     ) -> Result<()> {
         self.inner.authenticate(message, &policy.inner).await

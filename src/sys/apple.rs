@@ -28,7 +28,7 @@ impl Context {
     #[cfg(feature = "async")]
     pub(crate) async fn authenticate(
         &self,
-        text: Text<'_, '_, '_, '_, '_>,
+        text: Text<'_, '_, '_, '_, '_, '_>,
         policy: &Policy,
     ) -> Result<()> {
         // The callback should always execute and hence a message will always be sent.
@@ -54,7 +54,7 @@ impl Context {
 
     fn authenticate_inner(
         &self,
-        text: Text<'_, '_, '_, '_, '_>,
+        text: Text<'_, '_, '_, '_, '_, '_>,
         policy: &Policy,
     ) -> channel_impl::Receiver<Result<()>> {
         let (tx, rx) = channel_impl::channel();

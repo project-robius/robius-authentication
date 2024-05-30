@@ -23,7 +23,7 @@ impl Context {
     #[cfg(feature = "async")]
     pub(crate) async fn authenticate(
         &self,
-        text: Text<'_, '_, '_, '_, '_>,
+        text: Text<'_, '_, '_, '_, '_, '_>,
         policy: &Policy,
     ) -> Result<()> {
         if let Ok(inner) = self.authenticate_inner(text, policy)?.await {

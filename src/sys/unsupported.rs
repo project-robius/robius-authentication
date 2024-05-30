@@ -11,7 +11,11 @@ impl Context {
     }
 
     #[cfg(feature = "async")]
-    pub(crate) async fn authenticate(&self, _: Text<'_, '_, '_, '_, '_>, _: &Policy) -> Result<()> {
+    pub(crate) async fn authenticate(
+        &self,
+        _: Text<'_, '_, '_, '_, '_, '_>,
+        _: &Policy,
+    ) -> Result<()> {
         Err(Error::Unknown)
     }
 

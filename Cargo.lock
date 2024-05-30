@@ -540,6 +540,7 @@ dependencies = [
  "robius-android-env",
  "tokio",
  "windows",
+ "windows-core",
 ]
 
 [[package]]

@@ -7,10 +7,10 @@ authors = [
     "Kevin Boos <kevinaboos@gmail.com>",
     "Project Robius Maintainers",
 ]
-description = "Rust abstractions for multi-platform native authentication: biometrics, password, TouchID, FaceID, Windows Hello, etc."
+description = "Rust abstractions for multi-platform native authentication: biometrics, fingerprint, password, TouchID, FaceID, Windows Hello, etc."
 documentation = "https://docs.rs/robius-authentication"
 homepage = "https://robius.rs/"
-keywords = ["robius", "authentication", "biometric", "password"]
+keywords = ["robius", "authentication", "biometric", "password", "fingerprint"]
 categories = ["os", "hardware-support", "api-bindings"]
 license = "MIT"
 readme = "README.md"

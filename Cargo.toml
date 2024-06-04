@@ -38,19 +38,12 @@ optional = true
 
 [target.'cfg(target_vendor = "apple")'.dependencies.objc2-local-authentication]
 version = "0.2.2"
-features = [
-    "block2",
-    "LAContext",
-    "LAError",
-]
+features = ["block2", "LAContext", "LAError"]
 
 [target.'cfg(target_vendor = "apple")'.dependencies.objc2-foundation]
 version = "0.2.2"
 default-features = false
-features = [
-    "NSError",
-    "NSString",
-]
+features = ["NSError", "NSString"]
 
 [target.'cfg(target_vendor = "apple")'.dependencies.objc2]
 version = "0.5.2"
@@ -77,7 +70,6 @@ features = [
     "Win32_NetworkManagement_NetManagement",
     "Win32_Security_Authentication_Identity",
     "Win32_Security_Credentials",
-    "Win32_System_WindowsProgramming",
 ]
 
 [target.'cfg(target_os = "windows")'.dependencies.windows-core]

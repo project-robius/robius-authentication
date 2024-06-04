@@ -53,7 +53,7 @@ fn ui_prompt(text: WindowsText) -> Result<(*mut c_void, u32)> {
     let (_message, _caption, ui) = ui(text);
 
     let handle = handle()?;
-    let mut auth_package = auth_package(handle);
+    let mut auth_package = auth_package(handle)?;
 
     let mut auth_buf = std::ptr::null_mut();
     let mut auth_buf_size = 0u32;
@@ -111,7 +111,7 @@ fn handle() -> Result<HANDLE> {
     }
 }
 
-fn auth_package(handle: HANDLE) -> u32 {
+fn auth_package(handle: HANDLE) -> Result<u32> {
     let mut auth_package = 0u32;
 
     let auth_package_bytes = unsafe { MSV1_0_PACKAGE_NAME.as_bytes() };

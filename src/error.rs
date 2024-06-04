@@ -1,8 +1,6 @@
 /// The result of an authentication operation.
 pub type Result<T> = std::result::Result<T, Error>;
 
-// TODO: How specific do we want the errors to be?
-
 /// An error produced during authentication.
 #[derive(Debug)]
 pub enum Error {
@@ -13,41 +11,13 @@ pub enum Error {
 
     // Common errors
     /// The user failed to provide valid credentials.
-    ///
-    /// This error can occur on:
-    /// - [Apple]
-    /// - [Windows]
-    ///
-    /// [Apple]: https://developer.apple.com/documentation/localauthentication/laerror/laerrorauthenticationfailed
-    /// [Windows]: https://learn.microsoft.com/en-us/uwp/api/windows.security.credentials.ui.userconsentverificationresult
     Authentication,
     /// Authentication failed because there were too many failed attempts.
-    ///
-    /// This error can occur on:
-    /// - [Apple]
-    /// - [Windows]
-    ///
-    /// [Apple]: https://developer.apple.com/documentation/localauthentication/laerror/laerrorbiometrylockout
-    /// [Windows]: https://learn.microsoft.com/en-us/uwp/api/windows.security.credentials.ui.userconsentverificationresult
     #[doc(alias = "lockout")]
     Exhausted,
     /// The requested authentication method was unavailable.
-    ///
-    /// This error can occur on:
-    /// - [Apple]
-    /// - [Windows]
-    ///
-    /// [Apple]: https://developer.apple.com/documentation/localauthentication/laerror/laerrorbiometrynotavailable
-    /// [Windows]: https://learn.microsoft.com/en-us/uwp/api/windows.security.credentials.ui.userconsentverificationresult
     Unavailable,
     /// The user canceled authentication.
-    ///
-    /// This error can occur on:
-    /// - [Apple]
-    /// - [Windows]
-    ///
-    /// [Apple]: https://developer.apple.com/documentation/localauthentication/laerror/laerrorusercancel
-    /// [Windows]: https://learn.microsoft.com/en-us/uwp/api/windows.security.credentials.ui.userconsentverificationresult
     UserCanceled,
 
     // Apple-specific errors

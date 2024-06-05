@@ -40,11 +40,22 @@ pub(super) fn authenticate(text: WindowsText) -> Result<()> {
         unpack_authentication_buffer(auth_buf, auth_buf_size)?;
 
     let (current_user, current_user_size) = current_user()?;
+    println!(
+        "buf user: {:?}",
+        String::from_utf16(&current_user[..current_user_size])
+    );
+    println!(
+        "current user: {:?}",
+        String::from_utf16(&username[..username_size])
+    );
     if username[..username_size] != current_user[..current_user_size] {
+        println!("invalid user name");
         return Err(Error::Authentication);
     }
 
     let (account_name, domain) = parse_username(username)?;
+    println!("account name: {:?}", String::from_utf16(&account_name));
+    println!("domain: {:?}", String::from_utf16(&domain));
     logon_user(account_name, domain, password)
 }
 
@@ -75,7 +86,10 @@ fn ui_prompt(text: WindowsText) -> Result<(*mut c_void, u32)> {
     match WIN32_ERROR(err) {
         NO_ERROR => Ok((auth_buf, auth_buf_size)),
         ERROR_CANCELLED => Err(Error::UserCanceled),
-        _ => Err(Error::Unknown),
+        _ => {
+            println!("ui prompt failed: {err:#?}");
+            Err(Error::Unknown)
+        }
     }
 }
 
@@ -107,6 +121,7 @@ fn handle() -> Result<HANDLE> {
     if result.is_ok() {
         Ok(handle)
     } else {
+        println!("getting lsa handle failed");
         Err(Error::Unknown)
     }
 }
@@ -136,6 +151,7 @@ fn auth_package(handle: HANDLE) -> Result<u32> {
     if is_ok {
         Ok(auth_package)
     } else {
+        println!("getting auth package failed");
         Err(Error::Unknown)
     }
 }
@@ -164,7 +180,10 @@ fn unpack_authentication_buffer(
             &mut password_size as *mut _,
         )
     }
-    .map_err(|_| Error::Unknown)?;
+    .map_err(|e| {
+        println!("unpacking auth buffer failed: {e:#?}");
+        Error::Unknown
+    })?;
 
     Ok(((username, username_size as usize), password))
 }
@@ -187,6 +206,7 @@ fn current_user() -> Result<(Username, usize)> {
         // reason :)
         Ok((username, username_size as usize + 1))
     } else {
+        println!("getting the current user failed");
         Err(Error::Unknown)
     }
 }
@@ -208,6 +228,7 @@ fn parse_username(
     if err == 0 {
         Ok((account_name, domain))
     } else {
+        println!("parsing username failed: {err}");
         Err(Error::Unknown)
     }
 }
@@ -230,5 +251,8 @@ fn logon_user(
             &mut _handle as *mut _,
         )
     }
-    .map_err(|_| Error::Authentication)
+    .map_err(|e| {
+        println!("logon failed: {e:#?}");
+        Error::Authentication
+    })
 }

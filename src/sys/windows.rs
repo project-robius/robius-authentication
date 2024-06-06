@@ -27,11 +27,8 @@ impl Context {
         _: &Policy,
     ) -> Result<()> {
         // NOTE: If we don't check availability, `request_verification` will hang.
-        #[cfg(not(feature = "winrt"))]
         let available =
             check_availability()?.await == Ok(UserConsentVerifierAvailability::Available);
-        #[cfg(feature = "winrt")]
-        let available = true;
 
         if available {
             convert(request_verification(message.windows)?.await?)
@@ -42,11 +39,8 @@ impl Context {
 
     pub(crate) fn blocking_authenticate(&self, message: Text, _: &Policy) -> Result<()> {
         // NOTE: If we don't check availability, `request_verification` will hang.
-        #[cfg(not(feature = "winrt"))]
         let available =
             check_availability()?.get() == Ok(UserConsentVerifierAvailability::Available);
-        #[cfg(feature = "winrt")]
-        let available = true;
 
         if available {
             convert(request_verification(message.windows)?.get()?)

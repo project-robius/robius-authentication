@@ -160,7 +160,7 @@ fn unpack_authentication_buffer(
     out_auth_buffer: *mut c_void,
     out_cred_size: u32,
 ) -> Result<((Username, usize), Password)> {
-    // TODO: Length is wrong?
+    // TODO: Length is wrong? This username includes domain.
     let mut username = [0u16; MAX_USERNAME_LENGTH];
     let mut username_size = username.len() as u32;
 

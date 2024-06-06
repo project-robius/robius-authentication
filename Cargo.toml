@@ -79,4 +79,4 @@ default-features = false
 [features]
 default = []
 async = ["dep:tokio"]
-winrt = []
+uwp = []

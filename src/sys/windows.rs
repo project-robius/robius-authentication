@@ -96,12 +96,11 @@ impl PolicyBuilder {
     }
 }
 
-#[cfg(not(feature = "winrt"))]
 fn check_availability() -> Result<IAsyncOperation<UserConsentVerifierAvailability>> {
     UserConsentVerifier::CheckAvailabilityAsync().map_err(|e| e.into())
 }
 
-#[cfg(not(feature = "winrt"))]
+#[cfg(feature = "uwp")]
 fn request_verification(
     text: WindowsText,
 ) -> Result<IAsyncOperation<UserConsentVerificationResult>> {
@@ -111,7 +110,7 @@ fn request_verification(
         .map_err(|e| e.into())
 }
 
-#[cfg(feature = "winrt")]
+#[cfg(not(feature = "uwp"))]
 fn request_verification(
     text: WindowsText,
 ) -> Result<IAsyncOperation<UserConsentVerificationResult>> {

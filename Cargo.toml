@@ -55,6 +55,9 @@ version = "=0.17.0"
 [target.'cfg(target_os = "linux")'.dependencies.gio]
 version = "=0.17.0"
 
+[target.'cfg(target_os = "windows")'.dependencies.retry]
+version = "2.0.0"
+
 [target.'cfg(target_os = "windows")'.dependencies.windows]
 version = "0.56.0"
 features = [
@@ -70,6 +73,7 @@ features = [
     "Win32_NetworkManagement_NetManagement",
     "Win32_Security_Authentication_Identity",
     "Win32_Security_Credentials",
+    "Win32_UI_Input_KeyboardAndMouse",
 ]
 
 [target.'cfg(target_os = "windows")'.dependencies.windows-core]

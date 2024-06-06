@@ -43,7 +43,8 @@ impl Context {
             check_availability()?.get() == Ok(UserConsentVerifierAvailability::Available);
 
         if available {
-            convert(request_verification(message.windows)?.get()?)
+            let verification = request_verification(message.windows)?;
+            convert(verification.get()?)
         } else {
             fallback::authenticate(message.windows)
         }
@@ -115,25 +116,88 @@ fn request_verification(
     text: WindowsText,
 ) -> Result<IAsyncOperation<UserConsentVerificationResult>> {
     use windows::{
-        core::factory,
+        core::{factory, s},
         Win32::{
-            System::WinRT::IUserConsentVerifierInterop, UI::WindowsAndMessaging::GetDesktopWindow,
+            Foundation::HWND,
+            System::WinRT::IUserConsentVerifierInterop,
+            UI::{
+                Input::KeyboardAndMouse::{
+                    keybd_event, GetAsyncKeyState, SetFocus, KEYEVENTF_EXTENDEDKEY,
+                    KEYEVENTF_KEYUP, VK_MENU,
+                },
+                WindowsAndMessaging::{FindWindowA, GetDesktopWindow, SetForegroundWindow},
+            },
         },
     };
+
+    // Taken from Bitwarden:
+    // https://github.com/bitwarden/clients/blob/fb7273beb894b33db8b62f853b3d056656342856/apps/desktop/desktop_native/src/biometric/windows.rs#L192
+    fn focus_security_prompt() -> Result<()> {
+        unsafe fn try_find_and_set_focus(
+            class_name: windows::core::PCSTR,
+        ) -> retry::OperationResult<(), ()> {
+            let hwnd = unsafe { FindWindowA(class_name, None) };
+            if hwnd.0 != 0 {
+                set_focus(hwnd);
+                return retry::OperationResult::Ok(());
+            }
+            retry::OperationResult::Retry(())
+        }
+
+        let class_name = s!("Credential Dialog Xaml Host");
+        retry::retry_with_index(retry::delay::Fixed::from_millis(500), |current_try| {
+            if current_try > 3 {
+                return retry::OperationResult::Err(());
+            }
+
+            unsafe { try_find_and_set_focus(class_name) }
+        })
+        .map_err(|_| Error::Unknown)
+    }
+
+    // Taken from Bitwarden:
+    // https://github.com/bitwarden/clients/blob/fb7273beb894b33db8b62f853b3d056656342856/apps/desktop/desktop_native/src/biometric/windows.rs#L215
+    fn set_focus(window: HWND) {
+        let mut pressed = false;
+
+        unsafe {
+            // Simulate holding down Alt key to bypass windows limitations
+            //  https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getasynckeystate#return-value
+            //  The most significant bit indicates if the key is currently being pressed.
+            // This means the  value will be negative if the key is pressed.
+            if GetAsyncKeyState(VK_MENU.0 as i32) >= 0 {
+                pressed = true;
+                keybd_event(VK_MENU.0 as u8, 0, KEYEVENTF_EXTENDEDKEY, 0);
+            }
+            let _ = SetForegroundWindow(window);
+            SetFocus(window);
+            if pressed {
+                keybd_event(
+                    VK_MENU.0 as u8,
+                    0,
+                    KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP,
+                    0,
+                );
+            }
+        }
+    }
 
     let window = unsafe { GetDesktopWindow() };
     let caption = caption(text.description);
 
     let factory = factory::<UserConsentVerifier, IUserConsentVerifierInterop>()?;
 
-    unsafe {
+    let op = unsafe {
         IUserConsentVerifierInterop::RequestVerificationForWindowAsync(
             &factory,
             window,
             &HSTRING::from_wide(&caption[..])?,
         )
-    }
-    .map_err(|e| e.into())
+    }?;
+
+    focus_security_prompt()?;
+
+    Ok(op)
 }
 
 fn caption(message: &str) -> Vec<u16> {

@@ -226,10 +226,6 @@ fn convert(result: UserConsentVerificationResult) -> Result<()> {
 
 impl From<windows::core::Error> for Error {
     fn from(_value: windows::core::Error) -> Self {
-        // TODO
-        // match value.code().0 {
-        //     _ => Self::Unknown,
-        // }
         Self::Unknown
     }
 }

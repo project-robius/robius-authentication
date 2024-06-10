@@ -16,7 +16,7 @@ use windows::{
                 CredUnPackAuthenticationBufferW, CREDUIWIN_FLAGS, CREDUI_INFOW,
                 CREDUI_MAX_DOMAIN_TARGET_LENGTH, CRED_PACK_PROTECTED_CREDENTIALS,
             },
-            LogonUserW, LOGON32_LOGON_BATCH, LOGON32_PROVIDER_DEFAULT,
+            LogonUserW, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT,
         },
     },
 };
@@ -223,7 +223,7 @@ fn logon_user(
             PWSTR(account_name.as_mut_ptr()),
             PWSTR(domain.as_mut_ptr()),
             PWSTR(password.as_mut_ptr()),
-            LOGON32_LOGON_BATCH,
+            LOGON32_LOGON_INTERACTIVE,
             LOGON32_PROVIDER_DEFAULT,
             // If we pass in a null pointer here, Windows silently succeeds regardless of the
             // password provided ... thanks Windows.

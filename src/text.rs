@@ -29,7 +29,8 @@ pub struct WindowsText<'a, 'b> {
 impl<'a, 'b> WindowsText<'a, 'b> {
     /// Creates a new `WindowsText` instance.
     ///
-    /// Returns `None` if the `title` or `description` are too large.
+    /// Returns `None` if `title` exceeds 128 bytes in length
+    /// or if `description` exceeds 1024 bytes in length.
     #[cfg(target_os = "windows")]
     pub const fn new(title: &'a str, description: &'b str) -> Option<Self> {
         use windows::Win32::Security::Credentials::{
@@ -47,7 +48,8 @@ impl<'a, 'b> WindowsText<'a, 'b> {
 
     /// Creates a new `WindowsText` instance.
     ///
-    /// Returns `None` if the `title` or `description` are too large.
+    /// Returns `None` if `title` exceeds 128 bytes in length
+    /// or if `description` exceeds 1024 bytes in length.
     #[cfg(not(target_os = "windows"))]
     pub const fn new(title: &'a str, description: &'b str) -> Option<Self> {
         Some(Self { title, description })
@@ -55,24 +57,26 @@ impl<'a, 'b> WindowsText<'a, 'b> {
 
     /// Creates a new `WindowsText` instance.
     ///
-    /// The `title` ("caption") will be truncated to 128 bytes,
-    /// and the `description` ("message") will be truncated to 1024 bytes.
+    /// The `title` ("caption") will be truncated to 128 bytes in length,
+    /// and the `description` ("message") will be truncated to 1024 bytes in length.
     #[cfg(target_os = "windows")]
     pub fn new_truncated(title: &'a str, description: &'b str) -> Self {
         use windows::Win32::Security::Credentials::{
             CREDUI_MAX_CAPTION_LENGTH, CREDUI_MAX_MESSAGE_LENGTH,
         };
 
+        let title_max_len = std::cmp::min(CREDUI_MAX_CAPTION_LENGTH as usize, title.len());
+        let description_max_len = std::cmp::min(CREDUI_MAX_MESSAGE_LENGTH as usize, description.len());
         Self {
-            title: &title[..CREDUI_MAX_CAPTION_LENGTH as usize],
-            description: &description[..CREDUI_MAX_MESSAGE_LENGTH as usize],
+            title: &title[..title_max_len],
+            description: &description[..description_max_len],
         }
     }
 
     /// Creates a new `WindowsText` instance.
     ///
-    /// The `title` ("caption") will be truncated to 128 bytes,
-    /// and the `description` ("message") will be truncated to 1024 bytes.
+    /// The `title` ("caption") will be truncated to 128 bytes in length,
+    /// and the `description` ("message") will be truncated to 1024 bytes in length.
     #[cfg(not(target_os = "windows"))]
     pub fn new_truncated(title: &'a str, description: &'b str) -> Self {
         Self { title, description }

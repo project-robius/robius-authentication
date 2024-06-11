@@ -1,28 +1,28 @@
-//! A cross-platform authentication framework.
+//! Abstractions for multi-platform native authentication.
 //!
 //! This crate supports:
-//! - Apple
+//! - Apple: TouchID, FaceID, and regular username/password on macOS and iOS.
 //! - Android: See below for additional steps.
-//! - Windows. Only supports devices that have biometric authentication
-//!   hardware. Password-only authentication is still a work in progress.
+//!   - Requires the `USE_BIOMETRIC` permission in your app's manifest.
+//! - Windows: Windows Hello (face recognition, fingerprint, PIN),
+//!   plus winrt-based fallback for username/password.
+//! - Linux: [`polkit`]-based authentication using the desktop environment's prompt.
 //!
-//! # Examples
+//! # Example
 //!
 //! ```no_run
-//! #![feature(const_option)]
-//!
 //! use robius_authentication::{
 //!     AndroidText, BiometricStrength, Context, Policy, PolicyBuilder, Text, WindowsText,
 //! };
 //!
-//! const POLICY: Policy = PolicyBuilder::new()
+//! let policy: Policy = PolicyBuilder::new()
 //!     .biometrics(Some(BiometricStrength::Strong))
 //!     .password(true)
 //!     .watch(true)
 //!     .build()
 //!     .unwrap();
 //!
-//! const TEXT: Text = Text {
+//! let text = Text {
 //!     android: AndroidText {
 //!         title: "Title",
 //!         subtitle: None,
@@ -33,22 +33,23 @@
 //! };
 //!
 //! Context::new(())
-//!     .blocking_authenticate(TEXT, &POLICY)
+//!     .blocking_authenticate(text, &policy)
 //!     .expect("authentication failed");
 //! ```
 //!
-//! For more details about the prompt text see [`Text`].
+//! For more details about the prompt text see the [`Text`] struct
+//! which allows you to customize the prompt for each platform.
 //!
-//! # Android
+//! ## Usage on Android
 //!
-//! For authentication to work, the following must be added to
+//! For authentication to work, the following must be added to your app's
 //! `AndroidManifest.xml`:
 //! ```xml
 //! <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 //! ```
 //!
-//! [`LAContext`]: https://developer.apple.com/documentation/localauthentication/lacontext
 //! [`polkit`]: https://www.freedesktop.org/software/polkit/docs/latest/polkit.8.html
+//!
 
 mod error;
 mod sys;

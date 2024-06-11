@@ -1,3 +1,6 @@
+// For the `uwp` feature gates.
+#![allow(unexpected_cfgs)]
+
 mod fallback;
 
 use windows::{

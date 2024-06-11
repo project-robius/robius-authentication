@@ -27,7 +27,6 @@ use crate::{text::WindowsText, Error, Result};
 // Add one to include null byte.
 const MAX_USERNAME_LENGTH: usize = UNLEN as usize + 1;
 const MAX_DOMAIN_LENGTH: usize = CREDUI_MAX_DOMAIN_TARGET_LENGTH as usize + 1;
-// TODO
 const MAX_PASSWORD_LENGTH: usize = 256 + 1;
 
 type Username = [u16; MAX_USERNAME_LENGTH];
@@ -80,12 +79,21 @@ fn ui_prompt(text: WindowsText) -> Result<(*mut c_void, u32)> {
 }
 
 fn ui(text: WindowsText) -> (Vec<u16>, Vec<u16>, CREDUI_INFOW) {
-    let mut message = Vec::with_capacity(text.description.len() + 1);
-    message.extend(text.description.encode_utf16());
+    use windows::Win32::Security::Credentials::{
+        CREDUI_MAX_CAPTION_LENGTH, CREDUI_MAX_MESSAGE_LENGTH,
+    };
+
+    let title_max_len = std::cmp::min(CREDUI_MAX_CAPTION_LENGTH as usize, text.title.len());
+    let description_max_len = std::cmp::min(CREDUI_MAX_MESSAGE_LENGTH as usize, text.description.len());
+    let title = &text.title[..title_max_len];
+    let description = &text.description[..description_max_len];
+
+    let mut message = Vec::with_capacity(description.len() + 1);
+    message.extend(description.encode_utf16());
     message.push(0);
 
-    let mut caption = Vec::with_capacity(text.title.len() + 1);
-    caption.extend(text.title.encode_utf16());
+    let mut caption = Vec::with_capacity(title.len() + 1);
+    caption.extend(title.encode_utf16());
     caption.push(0);
 
     let ui = CREDUI_INFOW {
@@ -144,7 +152,7 @@ fn unpack_authentication_buffer(
     out_auth_buffer: *mut c_void,
     out_cred_size: u32,
 ) -> Result<((Username, usize), Password)> {
-    // TODO: Length is wrong? This username includes domain.
+    // Length is wrong? This username includes domain.
     let mut username = [0u16; MAX_USERNAME_LENGTH];
     let mut username_size = username.len() as u32;
 

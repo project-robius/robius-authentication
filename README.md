@@ -43,7 +43,7 @@ let text = Text {
         description: None,
     },
     apple: "authenticate",
-    windows: WindowsText::new("Title", "Description").unwrap(),
+    windows: WindowsText::new("Title", "Description"),
 };
 
 let auth_result = Context::new(()).blocking_authenticate(text, &policy);

@@ -32,21 +32,6 @@ impl<'a, 'b> WindowsText<'a, 'b> {
     /// The `title` ("caption") will be truncated to 128 bytes,
     /// and the `description` ("message") will be truncated to 1024 bytes.
     pub const fn new(title: &'a str, description: &'b str) -> Self {
-        #[cfg(not(target_os = "windows"))] {
-            Some(Self { title, description })
-        }
-
-        #[cfg(target_os = "windows")] {
-            use windows::Win32::Security::Credentials::{
-                CREDUI_MAX_CAPTION_LENGTH, CREDUI_MAX_MESSAGE_LENGTH,
-            };
-
-            let title_max_len = std::cmp::min(CREDUI_MAX_CAPTION_LENGTH as usize, title.len());
-            let description_max_len = std::cmp::min(CREDUI_MAX_MESSAGE_LENGTH as usize, description.len());
-            Self {
-                title: &title[..title_max_len],
-                description: &description[..description_max_len],
-            }
-        }
+        Self { title, description }
     }
 }

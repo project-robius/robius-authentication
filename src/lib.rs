@@ -4,9 +4,10 @@
 //! - Apple: TouchID, FaceID, and regular username/password on macOS and iOS.
 //! - Android: See below for additional steps.
 //!   - Requires the `USE_BIOMETRIC` permission in your app's manifest.
-//! - Windows: Windows Hello (face recognition, fingerprint, PIN),
-//!   plus winrt-based fallback for username/password.
-//! - Linux: [`polkit`]-based authentication using the desktop environment's prompt.
+//! - Windows: Windows Hello (face recognition, fingerprint, PIN), plus
+//!   winrt-based fallback for username/password.
+//! - Linux: [`polkit`]-based authentication using the desktop environment's
+//!   prompt.
 //!
 //! # Example
 //!
@@ -29,12 +30,39 @@
 //!         description: None,
 //!     },
 //!     apple: "authenticate",
-//!     windows: WindowsText::new("Title", "Description"),
+//!     windows: WindowsText::new_truncated("Title", "Description"),
 //! };
 //!
 //! Context::new(())
 //!     .blocking_authenticate(text, &policy)
 //!     .expect("authentication failed");
+//! ```
+//!
+//! The `Policy` and `Text` structs can also be constructed at compile-time to
+//! avoid run-time unwraps:
+//! ```
+//! #![feature(const_option)]
+//!
+//! use robius_authentication::{
+//!     AndroidText, BiometricStrength, Policy, PolicyBuilder, Text, WindowsText,
+//! };
+//!
+//! const POLICY: Policy = PolicyBuilder::new()
+//!     .biometrics(Some(BiometricStrength::Strong))
+//!     .password(true)
+//!     .watch(true)
+//!     .build()
+//!     .unwrap();
+//!
+//! const TEXT: Text = Text {
+//!     android: AndroidText {
+//!         title: "Title",
+//!         subtitle: None,
+//!         description: None,
+//!     },
+//!     apple: "authenticate",
+//!     windows: WindowsText::new("Title", "Description").unwrap(),
+//! };
 //! ```
 //!
 //! For more details about the prompt text see the [`Text`] struct
@@ -49,7 +77,6 @@
 //! ```
 //!
 //! [`polkit`]: https://www.freedesktop.org/software/polkit/docs/latest/polkit.8.html
-//!
 
 mod error;
 mod sys;

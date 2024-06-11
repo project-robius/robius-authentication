@@ -18,7 +18,7 @@ const TEXT: Text = Text {
         description: None,
     },
     apple: "authenticate",
-    windows: WindowsText::new("Title", "Description"),
+    windows: WindowsText::new("Title", "Description").unwrap(),
 };
 
 fn main() {

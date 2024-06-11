@@ -3,7 +3,6 @@
 
 mod fallback;
 
-use std::cmp::min;
 use windows::{
     core::HSTRING,
     Foundation::IAsyncOperation,
@@ -205,15 +204,13 @@ fn request_verification(
 }
 
 fn caption(message: &str) -> Vec<u16> {
-    use windows::Win32::Security::Credentials::CREDUI_MAX_MESSAGE_LENGTH;
+    let mut caption = Vec::with_capacity(message.len());
 
-    let length = min(message.len(), CREDUI_MAX_MESSAGE_LENGTH as usize);
-    let message = &message[..length];
-    let mut caption = Vec::with_capacity(length);
     for c in message.encode_utf16() {
         caption.push(c);
     }
     caption.push(0);
+
     caption
 }
 

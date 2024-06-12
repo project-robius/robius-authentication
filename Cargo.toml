@@ -61,7 +61,7 @@ version = "2.0.0"
 [target.'cfg(target_os = "windows")'.dependencies.windows]
 version = "0.56.0"
 features = [
-    # UWP
+    # For UWP-based authentication.
     "Foundation",
     "Security_Credentials_UI",
     # WinRT
@@ -82,5 +82,9 @@ default-features = false
 
 [features]
 default = []
+## Enable this feature to expose non-blocking asynchronous authentication APIs.
 async = ["dep:tokio"]
+## Note: there is a UWP feature still in the code,
+## but enabling it causes the app to freeze on Windows 11 Pro.
+## Everything still works correctly without the UWP feature.
 # uwp = []

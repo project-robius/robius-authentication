@@ -13,6 +13,7 @@ This crate supports:
 * Windows: Windows Hello (face recognition, fingerprint, PIN),
 plus winrt-based fallback for username/password.
 * Linux: [`polkit`]-based authentication using the desktop environment's prompt.
+  * **Note: Linux support is currently incomplete.**
 
 ## Usage on Android
 

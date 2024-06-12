@@ -8,6 +8,7 @@
 //!   winrt-based fallback for username/password.
 //! - Linux: [`polkit`]-based authentication using the desktop environment's
 //!   prompt.
+//!   - **Note: Linux support is currently incomplete.**
 //!
 //! # Example
 //!
@@ -87,14 +88,19 @@ pub use crate::{
     text::{AndroidText, Text, WindowsText},
 };
 
+/// A "raw" context that can be used to create a [`Context`].
+///
+/// Currently, all platforms define this as the void type `()`.
 pub type RawContext = sys::RawContext;
 
+/// Holds platform-specific contextual state required to display an authentication prompt.
 #[derive(Debug)]
 pub struct Context {
     inner: sys::Context,
 }
 
 impl Context {
+    /// Creates a new context from the given "raw" context.
     #[inline]
     pub fn new(raw: RawContext) -> Self {
         Self {
@@ -137,6 +143,7 @@ pub enum BiometricStrength {
     Weak,
 }
 
+/// A builder for conveniently defining a policy.
 #[derive(Debug)]
 pub struct PolicyBuilder {
     inner: sys::PolicyBuilder,

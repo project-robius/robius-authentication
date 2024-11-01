@@ -73,7 +73,7 @@ impl Context {
 
             Ok(rx)
         })
-        .ok_or(Error::Unknown)?
+        .map_err(|e| Error::Java(e))?
     }
 }
 

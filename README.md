@@ -51,7 +51,7 @@ let auth_result = Context::new(()).blocking_authenticate(text, &policy);
 ...
 ```
 
-For more details about the prompt text, see the [`Text`] struct,
+For more details about the prompt text, see the `Text` struct,
 which allows you to customize the prompt for each platform.
 
 [`polkit`]: https://www.freedesktop.org/software/polkit/docs/latest/polkit.8.html

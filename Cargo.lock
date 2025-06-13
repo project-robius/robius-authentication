@@ -586,7 +586,6 @@ dependencies = [
  "cfg-if",
  "gio",
  "jni",
- "log",
  "objc2",
  "objc2-foundation",
  "objc2-local-authentication",

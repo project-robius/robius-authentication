@@ -56,10 +56,7 @@ unsafe extern "C" fn rust_callback<'a>(
             BIOMETRIC_ERROR_USER_CANCELED => Error::UserCanceled,
             BIOMETRIC_ERROR_VENDOR => Error::Unknown,
             BIOMETRIC_NO_AUTHENTICATION => Error::Unavailable,
-            _ => {
-                log::warn!("received unknown biometric error code: {error_code:#0x}");
-                Error::Unknown
-            }
+            _ => Error::Unknown,
         }));
     } else if help_code != 0 {
         // TODO

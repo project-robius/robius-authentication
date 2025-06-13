@@ -23,7 +23,7 @@ impl PolicyBuilder {
         Self
     }
 
-    pub(crate) const fn watch(self, _: bool) -> Self {
+    pub(crate) const fn companion(self, _: bool) -> Self {
         Self
     }
 

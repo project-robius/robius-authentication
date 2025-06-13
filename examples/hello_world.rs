@@ -1,5 +1,3 @@
-#![feature(const_option)]
-
 use robius_authentication::{
     AndroidText, BiometricStrength, Context, Policy, PolicyBuilder, Text, WindowsText,
 };
@@ -7,7 +5,7 @@ use robius_authentication::{
 const POLICY: Policy = PolicyBuilder::new()
     .biometrics(Some(BiometricStrength::Strong))
     .password(true)
-    .watch(true)
+    .companion(true)
     .build()
     .unwrap();
 

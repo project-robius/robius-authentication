@@ -87,7 +87,7 @@ impl Context {
                     LAError::UserCancel => Error::UserCanceled,
                     // TODO
                     LAError::UserFallback => Error::Unknown,
-                    LAError::WatchNotAvailable => Error::WatchNotAvailable,
+                    LAError::CompanionNotAvailable => Error::CompanionNotAvailable,
                     _ => Error::Unknown,
                 };
                 tx.send(Err(error))
@@ -116,7 +116,7 @@ pub(crate) struct Policy {
 pub(crate) struct PolicyBuilder {
     _biometrics: bool,
     _password: bool,
-    _watch: bool,
+    _companion: bool,
     _wrist_detection: bool,
 }
 
@@ -125,7 +125,7 @@ impl PolicyBuilder {
         Self {
             _biometrics: true,
             _password: true,
-            _watch: true,
+            _companion: true,
             _wrist_detection: true,
         }
     }
@@ -144,9 +144,9 @@ impl PolicyBuilder {
         }
     }
 
-    pub(crate) const fn watch(self, watch: bool) -> Self {
+    pub(crate) const fn companion(self, companion: bool) -> Self {
         Self {
-            _watch: watch,
+            _companion: companion,
             ..self
         }
     }
@@ -181,27 +181,27 @@ impl PolicyBuilder {
             Self {
                 _biometrics: true,
                 _password: true,
-                _watch: true,
+                _companion: true,
                 ..
             } => LAPolicy::DeviceOwnerAuthentication,
             Self {
                 _biometrics: true,
                 _password: false,
-                _watch: true,
+                _companion: true,
                 ..
-            } => LAPolicy::DeviceOwnerAuthenticationWithBiometricsOrWatch,
+            } => LAPolicy::DeviceOwnerAuthenticationWithBiometricsOrCompanion,
             Self {
                 _biometrics: true,
                 _password: false,
-                _watch: false,
+                _companion: false,
                 ..
             } => LAPolicy::DeviceOwnerAuthenticationWithBiometrics,
             Self {
                 _biometrics: false,
                 _password: false,
-                _watch: true,
+                _companion: true,
                 ..
-            } => LAPolicy::DeviceOwnerAuthenticationWithWatch,
+            } => LAPolicy::DeviceOwnerAuthenticationWithCompanion,
             _ => return None,
         };
         Some(Policy { inner: policy })

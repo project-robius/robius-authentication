@@ -20,7 +20,7 @@
 //! let policy: Policy = PolicyBuilder::new()
 //!     .biometrics(Some(BiometricStrength::Strong))
 //!     .password(true)
-//!     .watch(true)
+//!     .companion(true)
 //!     .build()
 //!     .unwrap();
 //!
@@ -51,7 +51,7 @@
 //! const POLICY: Policy = PolicyBuilder::new()
 //!     .biometrics(Some(BiometricStrength::Strong))
 //!     .password(true)
-//!     .watch(true)
+//!     .companion(true)
 //!     .build()
 //!     .unwrap();
 //!
@@ -186,20 +186,20 @@ impl PolicyBuilder {
         }
     }
 
-    /// Sets whether the policy supports watch proximity authentication.
+    /// Sets whether the policy supports authentication via a proximity companion device, e.g., Apple Watch.
     ///
     /// This only has an effect on iOS and macOS.
     #[inline]
     #[must_use]
-    pub const fn watch(self, watch: bool) -> Self {
+    pub const fn companion(self, companion: bool) -> Self {
         Self {
-            inner: self.inner.watch(watch),
+            inner: self.inner.companion(companion),
         }
     }
 
-    /// Sets whether the policy requires the watch to be on the user's wrist.
+    /// Sets whether the policy requires the companion device (Apple Watch) to be on the user's wrist.
     ///
-    /// This only has an effect on watchOS.
+    /// This only has an effect on Apple watchOS.
     #[inline]
     #[must_use]
     pub const fn wrist_detection(self, wrist_detection: bool) -> Self {

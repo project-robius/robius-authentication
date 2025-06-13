@@ -33,7 +33,7 @@ use robius_authentication::{
 let policy: Policy = PolicyBuilder::new()
     .biometrics(Some(BiometricStrength::Strong))
     .password(true)
-    .watch(true)
+    .companion(true)
     .build()
     .unwrap();
 

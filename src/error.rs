@@ -65,13 +65,14 @@ pub enum Error {
     ///
     /// [Apple]: https://developer.apple.com/documentation/localauthentication/laerror/laerrornotinteractive
     NotInteractive,
-    /// An attempt to authenticate with Apple Watch failed.
+    /// An attempt to authenticate with an Apple companion device (e.g., Apple Watch) failed.
     ///
     /// This error can occur on:
-    /// - [Apple]
+    /// - [Apple], formerly known as `WatchNotAvailable`
     ///
-    /// [Apple]: https://developer.apple.com/documentation/localauthentication/laerror/laerrorwatchnotavailable
-    WatchNotAvailable,
+    /// [Apple]: https://developer.apple.com/documentation/localauthentication/laerror-swift.struct/companionnotavailable
+    #[doc(alias = "WatchNotAvailable")]
+    CompanionNotAvailable,
     /// This error can occur on:
     /// - [Apple]
     ///

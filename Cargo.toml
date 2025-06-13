@@ -27,8 +27,11 @@ jni = "0.21.1"
 log = "0.4.21"
 robius-android-env = "0.2.0"
 
-[target.'cfg(target_vendor = "apple")'.dependencies.block2]
-version = "0.5.1"
+[target.'cfg(target_vendor = "apple")'.dependencies]
+block2 = "0.6.1"
+objc2 = "0.6.1"
+objc2-local-authentication = { version = "0.3.1", default-features = false, features = ["block2", "LAContext", "LAError"] }
+objc2-foundation = { version = "0.3.1", default-features = false, features = ["NSError", "NSString"] }
 
 [target.'cfg(any(target_vendor = "apple", target_os = "android"))'.dependencies.tokio]
 version = "1.35.1"
@@ -36,31 +39,14 @@ default-features = false
 features = ["sync"]
 optional = true
 
-[target.'cfg(target_vendor = "apple")'.dependencies.objc2-local-authentication]
-version = "0.2.2"
-features = ["block2", "LAContext", "LAError"]
+[target.'cfg(target_os = "linux")'.dependencies]
+polkit = "=0.17.0"
+gio = "=0.17.0"
 
-[target.'cfg(target_vendor = "apple")'.dependencies.objc2-foundation]
-version = "0.2.2"
-default-features = false
-features = ["NSError", "NSString"]
-
-[target.'cfg(target_vendor = "apple")'.dependencies.objc2]
-version = "0.5.2"
-default-features = false
-
-[target.'cfg(target_os = "linux")'.dependencies.polkit]
-version = "=0.17.0"
-
-[target.'cfg(target_os = "linux")'.dependencies.gio]
-version = "=0.17.0"
-
-[target.'cfg(target_os = "windows")'.dependencies.retry]
-version = "2.0.0"
-
-[target.'cfg(target_os = "windows")'.dependencies.windows]
-version = "0.56.0"
-features = [
+[target.'cfg(target_os = "windows")'.dependencies]
+retry = "2.0.0"
+windows-core = { version = "0.56.0", default-features = false }
+windows = { version = "0.56.0", default-features = false, features = [
     # For UWP-based authentication.
     "Foundation",
     "Security_Credentials_UI",
@@ -74,11 +60,8 @@ features = [
     "Win32_Security_Authentication_Identity",
     "Win32_Security_Credentials",
     "Win32_UI_Input_KeyboardAndMouse",
-]
+]}
 
-[target.'cfg(target_os = "windows")'.dependencies.windows-core]
-version = "0.56.0"
-default-features = false
 
 [features]
 default = []

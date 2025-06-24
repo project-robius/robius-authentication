@@ -1,5 +1,3 @@
-#[cfg(not(feature = "async"))]
-use std::sync::mpsc as channel_impl;
 use std::sync::OnceLock;
 
 use jni::{
@@ -7,22 +5,12 @@ use jni::{
     sys::{jint, jlong},
     JNIEnv, NativeMethod,
 };
-#[cfg(feature = "async")]
-use tokio::sync::oneshot as channel_impl;
 
 use crate::{Error, Result};
 
 const AUTHENTICATION_CALLBACK_BYTECODE: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/classes.dex"));
 
-type ChannelData = Result<()>;
-
-pub(super) type Receiver = channel_impl::Receiver<ChannelData>;
-pub(super) type Sender = channel_impl::Sender<ChannelData>;
-
-pub(super) fn channel() -> (Sender, Receiver) {
-    channel_impl::channel()
-}
 
 // NOTE: This must be kept in sync with the signature of `rust_callback`.
 const RUST_CALLBACK_SIGNATURE: &str = "(JII)V";
@@ -32,14 +20,18 @@ const RUST_CALLBACK_SIGNATURE: &str = "(JII)V";
 unsafe extern "C" fn rust_callback<'a>(
     _: JNIEnv<'a>,
     _: JObject<'a>,
-    channel_ptr: jlong,
+    callback_ptr_ptr: jlong,
     error_code: jint,
     help_code: jint,
 ) {
-    let channel = unsafe { Box::from_raw(channel_ptr as *mut Sender) };
+    // When we constructed the callback, we double-boxed it.
+    let callback_ptr_boxed = unsafe {
+        Box::from_raw(callback_ptr_ptr as *mut Box<dyn Fn(Result<()>)>)
+    };
+    let callback = *callback_ptr_boxed;
 
-    if error_code != 0 {
-        let _ = channel.send(Err(match error_code {
+    let result = if error_code != 0 {
+        Err(match error_code {
             BIOMETRIC_ERROR_CANCELED => Error::SystemCanceled,
             // TODO: Differentiate between not present and unavailable?
             BIOMETRIC_ERROR_HW_NOT_PRESENT => Error::Unavailable,
@@ -57,13 +49,14 @@ unsafe extern "C" fn rust_callback<'a>(
             BIOMETRIC_ERROR_VENDOR => Error::Unknown,
             BIOMETRIC_NO_AUTHENTICATION => Error::Unavailable,
             _ => Error::Unknown,
-        }));
+        })
     } else if help_code != 0 {
-        // TODO
-        let _ = channel.send(Err(Error::Unknown));
+        // TODO: consider returning a specific retry-able error here.
+        Err(Error::Unknown)
     } else {
-        let _ = channel.send(Ok(()));
-    }
+        Ok(())
+    };
+    callback(result);
 }
 
 static CALLBACK_CLASS: OnceLock<GlobalRef> = OnceLock::new();

@@ -36,7 +36,7 @@ impl PolicyBuilder {
     }
 }
 
-pub(crate) async fn authenticate(_message: &str, _: &Policy) -> Result<()> {
+pub(crate) async fn authenticate_async(_message: &str, _: &Policy) -> Result<()> {
     unimplemented!()
 }
 

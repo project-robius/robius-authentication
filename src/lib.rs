@@ -34,8 +34,15 @@
 //!     windows: WindowsText::new_truncated("Title", "Description"),
 //! };
 //!
+//! let callback = |auth_result| {
+//!     match auth_result {
+//!         Ok(_)  => log::info!("Authentication success!"),
+//!         Err(_) => log::error!(Authentication failed!"),
+//!     }
+//! };
+//!
 //! Context::new(())
-//!     .blocking_authenticate(text, &policy)
+//!     .authenticate(text, &policy, callback)
 //!     .expect("authentication failed");
 //! ```
 //!
@@ -108,25 +115,46 @@ impl Context {
         }
     }
 
-    /// Authenticates using the provided policy and message.
-    ///
-    /// Returns whether the authentication was successful.
-    #[inline]
-    #[cfg(feature = "async")]
-    pub async fn authenticate(
-        &self,
-        message: Text<'_, '_, '_, '_, '_, '_>,
-        policy: &Policy,
-    ) -> Result<()> {
-        self.inner.authenticate(message, &policy.inner).await
-    }
+    // Async authentication functions are currently not implemented. 
+    //
+    // /// Authenticates using the provided policy and message.
+    // ///
+    // /// Returns whether the authentication was successful.
+    // #[inline]
+    // #[cfg(feature = "async")]
+    // pub async fn authenticate_async(
+    //     &self,
+    //     message: Text<'_, '_, '_, '_, '_, '_>,
+    //     policy: &Policy,
+    // ) -> Result<()> {
+    //     self.inner.authenticate(message, &policy.inner).await
+    // }
 
-    /// Authenticates using the provided policy and message.
+    /// Displays an authentication prompt using the provided policy and message.
     ///
-    /// Returns whether the authentication was successful.
+    /// Note that the returned `Result` does not indicate whether
+    /// authentication was successful. This function returns `Ok(())`
+    /// to indicate that the authentication prompt was successfully displayed,
+    /// not that the user successfully authenticated.
+    ///
+    /// For that purpose, the given `callback` will be called
+    /// with a Result indicating whether authentication succeeded.
+    /// Note that the callback may be not be called at all,
+    /// but will always be called upon success.
+    ///
+    /// Thus, authentication failed if this function returns an error
+    /// **OR** if the `callback` is invoked with `Err(_)`.
     #[inline]
-    pub fn blocking_authenticate(&self, message: Text, policy: &Policy) -> Result<()> {
-        self.inner.blocking_authenticate(message, &policy.inner)
+    pub fn authenticate<F>(
+        &self,
+        message: Text,
+        policy: &Policy,
+        callback: F,
+    ) -> Result<()>
+    where
+        F: Fn(Result<()>) + Send + 'static,
+    {
+        self.inner.authenticate(message, &policy.inner, callback)
     }
 }
 
@@ -144,6 +172,12 @@ pub enum BiometricStrength {
 }
 
 /// A builder for conveniently defining a policy.
+///
+/// It is **highly recommended** to use the [`Self::new()`] (default) value
+/// to create a policy with all options enabled, because each platform acts differently
+/// when being requested to enable/disable various authentication methods.
+/// Enabling all options is the safest way to ensure that the authentication prompt
+/// will be displayed correctly on all platforms.
 #[derive(Debug)]
 pub struct PolicyBuilder {
     inner: sys::PolicyBuilder,
@@ -216,7 +250,6 @@ impl PolicyBuilder {
     #[must_use]
     pub const fn build(self) -> Option<Policy> {
         Some(Policy {
-            // TODO: feature(const_try)
             inner: match self.inner.build() {
                 Some(inner) => inner,
                 None => return None,

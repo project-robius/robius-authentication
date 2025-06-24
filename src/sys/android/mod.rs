@@ -1,6 +1,5 @@
 mod callback;
 
-use callback::{Receiver, Sender};
 use jni::{
     objects::{GlobalRef, JObject, JValueGen},
     JNIEnv,
@@ -10,8 +9,8 @@ use crate::{BiometricStrength, Error, Result, Text};
 
 pub(crate) type RawContext = ();
 
-// Actual contextual info is handled by the `robius-android-env` crate, so we
-// don't have to store any state here.
+// The Android system context is handled by the `robius-android-env` crate,
+// so we don't need to store any state here within `Context`.
 #[derive(Debug)]
 pub(crate) struct Context;
 
@@ -20,40 +19,51 @@ impl Context {
         Self
     }
 
-    #[cfg(feature = "async")]
-    pub(crate) async fn authenticate(
+    // TODO: fix the async authenticate function
+    //
+    // #[cfg(feature = "async")]
+    // pub(crate) async fn authenticate_async(
+    //     &self,
+    //     text: Text<'_, '_, '_, '_, '_, '_>,
+    //     policy: &Policy,
+    // ) -> Result<()> {
+    //     if let Ok(inner) = self.authenticate_inner(text, policy)?.await {
+    //         inner
+    //     } else {
+    //         Err(Error::Unknown)
+    //     }
+    // }
+
+    pub(crate) fn authenticate<F>(
         &self,
-        text: Text<'_, '_, '_, '_, '_, '_>,
+        text: Text,
         policy: &Policy,
-    ) -> Result<()> {
-        if let Ok(inner) = self.authenticate_inner(text, policy)?.await {
-            inner
-        } else {
-            Err(Error::Unknown)
-        }
+        callback: F,
+    ) -> Result<()>
+    where
+        F: Fn(Result<()>) + Send + 'static,
+    {
+        self.authenticate_inner(text, policy, callback)
     }
 
-    pub(crate) fn blocking_authenticate(&self, text: Text, policy: &Policy) -> Result<()> {
-        #[cfg(feature = "async")]
-        let result = self.authenticate_inner(text, policy)?.blocking_recv();
-        #[cfg(not(feature = "async"))]
-        let result = self.authenticate_inner(text, policy)?.recv();
-
-        if let Ok(inner) = result {
-            inner
-        } else {
-            Err(Error::Unknown)
-        }
-    }
-
-    fn authenticate_inner(&self, text: Text, policy: &Policy) -> Result<Receiver> {
+    fn authenticate_inner<F>(
+        &self,
+        text: Text,
+        policy: &Policy,
+        callback: F,
+    ) -> Result<()>
+    where
+        F: Fn(Result<()>) + Send + 'static,
+    {
         robius_android_env::with_activity(|env, context| {
-            let (tx, rx) = callback::channel();
-
             let callback_class = callback::get_callback_class(env)?;
-
-            let callback_instance =
-                construct_callback(env, callback_class, Box::into_raw(Box::new(tx)))?;
+            let callback_boxed_dyn = Box::new(callback) as Box<dyn Fn(Result<()>)>;
+            let callback_boxed_boxed_ptr = Box::into_raw(Box::new(callback_boxed_dyn));
+            let callback_instance = construct_callback(
+                env,
+                callback_class,
+                callback_boxed_boxed_ptr as i64,
+            )?;
             let cancellation_signal = construct_cancellation_signal(env)?;
             let executor = get_executor(env, context)?;
 
@@ -62,8 +72,11 @@ impl Context {
             env.call_method(
                 biometric_prompt,
                 "authenticate",
-                "(Landroid/os/CancellationSignal;Ljava/util/concurrent/Executor;Landroid/hardware/\
-                 biometrics/BiometricPrompt$AuthenticationCallback;)V",
+                "(\
+                 Landroid/os/CancellationSignal;\
+                 Ljava/util/concurrent/Executor;\
+                 Landroid/hardware/biometrics/BiometricPrompt$AuthenticationCallback;\
+                 )V",
                 &[
                     JValueGen::Object(&cancellation_signal),
                     JValueGen::Object(&executor),
@@ -71,7 +84,7 @@ impl Context {
                 ],
             )?;
 
-            Ok(rx)
+            Ok(())
         })
         .map_err(|e| Error::Java(e))?
     }
@@ -128,9 +141,9 @@ impl PolicyBuilder {
 fn construct_callback<'a>(
     env: &mut JNIEnv<'a>,
     class: &GlobalRef,
-    channel_ptr: *mut Sender,
+    callback_box_ptr: i64,
 ) -> Result<JObject<'a>> {
-    env.new_object(class, "(J)V", &[JValueGen::Long(channel_ptr as i64)])
+    env.new_object(class, "(J)V", &[JValueGen::Long(callback_box_ptr)])
         .map_err(|e| e.into())
 }
 

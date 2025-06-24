@@ -1,13 +1,9 @@
-use std::mem::MaybeUninit;
-#[cfg(not(feature = "async"))]
-use std::sync::mpsc as channel_impl;
-
 use block2::RcBlock;
 use objc2::rc::Retained;
 use objc2_foundation::{NSError, NSString};
 use objc2_local_authentication::{LAContext, LAError, LAPolicy};
-#[cfg(feature = "async")]
-use tokio::sync::oneshot as channel_impl;
+// #[cfg(feature = "async")]
+// use tokio::sync::oneshot as channel_impl;
 
 use crate::{BiometricStrength, Error, Result, Text};
 
@@ -24,86 +20,67 @@ impl Context {
             inner: unsafe { LAContext::new() },
         }
     }
+    // TODO: Fix the async authenticate function
+    //
+    // #[cfg(feature = "async")]
+    // pub(crate) async fn authenticate_async(
+    //     &self,
+    //     text: Text<'_, '_, '_, '_, '_, '_>,
+    //     policy: &Policy,
+    // ) -> Result<()> {
+    //     // The callback should always execute and hence a message will always be sent.
+    //     self.authenticate_inner(text, policy).await.unwrap()
+    // }
 
-    #[cfg(feature = "async")]
-    pub(crate) async fn authenticate(
+    pub(crate) fn authenticate<F>(
+        &self,
+        text: Text,
+        policy: &Policy,
+        callback: F,
+    ) -> Result<()>
+    where
+        F: Fn(Result<()>) + Send + 'static,
+    {
+        self.authenticate_inner(text, policy, callback)
+    }
+
+    fn authenticate_inner<F>(
         &self,
         text: Text<'_, '_, '_, '_, '_, '_>,
         policy: &Policy,
-    ) -> Result<()> {
-        // The callback should always execute and hence a message will always be sent.
-        self.authenticate_inner(text, policy).await.unwrap()
-    }
-
-    pub(crate) fn blocking_authenticate(&self, text: Text, policy: &Policy) -> Result<()> {
-        // The callback should always execute, hence a message will always be sent, and
-        // hence it is ok to unwrap.
-        #[cfg(feature = "async")]
-        {
-            self.authenticate_inner(text, policy)
-                .blocking_recv()
-                .expect("failed to receive message from authentication callback")
-        }
-        #[cfg(not(feature = "async"))]
-        {
-            self.authenticate_inner(text, policy)
-                .recv()
-                .expect("failed to receive message from authentication callback")
-        }
-    }
-
-    fn authenticate_inner(
-        &self,
-        text: Text<'_, '_, '_, '_, '_, '_>,
-        policy: &Policy,
-    ) -> channel_impl::Receiver<Result<()>> {
-        let (tx, rx) = channel_impl::channel();
-        let unsafe_tx = MaybeUninit::new(tx);
-        let message = text.apple;
+        callback: F,
+    ) -> Result<()>
+    where
+        F: Fn(Result<()>) + Send + 'static
+    {
+        unsafe { self.inner.canEvaluatePolicy_error(policy.inner) }.map_err(|err| {
+            Error::from(LAError(err.code()))
+        })?;
 
         let block = RcBlock::new(move |is_success, error: *mut NSError| {
-            // SAFETY: The callback is only executed once.
-            let tx = unsafe { unsafe_tx.assume_init_read() };
-            let _ = if bool::from(is_success) {
-                tx.send(Ok(()))
-            } else {
-                let code = unsafe { &*error }.code();
-                #[allow(non_upper_case_globals)]
-                let error = match LAError(code) {
-                    LAError::AppCancel => Error::AppCanceled,
-                    LAError::AuthenticationFailed => Error::Authentication,
-                    LAError::BiometryDisconnected => Error::BiometryDisconnected,
-                    LAError::BiometryLockout => Error::Exhausted,
-                    // NOTE: This is triggered when access to biometrics is denied.
-                    LAError::BiometryNotAvailable => Error::Unavailable,
-                    LAError::BiometryNotEnrolled => Error::NotEnrolled,
-                    LAError::BiometryNotPaired => Error::NotPaired,
-                    // This error shouldn't occur, because we never invalidate the context.
-                    LAError::InvalidContext => Error::Unknown,
-                    LAError::InvalidDimensions => Error::InvalidDimensions,
-                    LAError::NotInteractive => Error::NotInteractive,
-                    LAError::PasscodeNotSet => Error::PasscodeNotSet,
-                    LAError::SystemCancel => Error::SystemCanceled,
-                    LAError::UserCancel => Error::UserCanceled,
-                    // TODO
-                    LAError::UserFallback => Error::Unknown,
-                    LAError::CompanionNotAvailable => Error::CompanionNotAvailable,
-                    _ => Error::Unknown,
-                };
-                tx.send(Err(error))
-            };
-        })
-        .copy();
+            let arg = bool::from(is_success)
+                .then_some(())
+                .ok_or_else(|| {
+                    if error.is_null() {
+                        Error::Unknown
+                    } else {
+                        let code = unsafe { &*error }.code();
+                        let laerror = LAError(code);
+                        Error::from(laerror)
+                    }
+                });
+            callback(arg)
+        });
 
         unsafe {
             self.inner.evaluatePolicy_localizedReason_reply(
                 policy.inner,
-                &NSString::from_str(message),
+                &NSString::from_str(text.apple),
                 &block,
             )
         };
 
-        rx
+        Ok(())
     }
 }
 
@@ -181,29 +158,73 @@ impl PolicyBuilder {
             Self {
                 _biometrics: true,
                 _password: true,
-                _companion: true,
                 ..
-            } => LAPolicy::DeviceOwnerAuthentication,
+            } => {
+                LAPolicy::DeviceOwnerAuthentication
+            },
             Self {
                 _biometrics: true,
                 _password: false,
                 _companion: true,
                 ..
-            } => LAPolicy::DeviceOwnerAuthenticationWithBiometricsOrCompanion,
+            } => {
+                // This crashes the app on iOS (at least on the simulator).
+                #[cfg(not(target_os = "ios"))] {
+                    LAPolicy::DeviceOwnerAuthenticationWithBiometricsOrCompanion
+                }
+                #[cfg(target_os = "ios")] {
+                    LAPolicy::DeviceOwnerAuthenticationWithBiometrics
+                }
+            },
             Self {
                 _biometrics: true,
                 _password: false,
                 _companion: false,
                 ..
-            } => LAPolicy::DeviceOwnerAuthenticationWithBiometrics,
+            } => {
+                LAPolicy::DeviceOwnerAuthenticationWithBiometrics
+            },
             Self {
                 _biometrics: false,
                 _password: false,
                 _companion: true,
                 ..
-            } => LAPolicy::DeviceOwnerAuthenticationWithCompanion,
+            } => {
+                // This crashes the app on iOS (at least on the simulator).
+                #[cfg(not(target_os = "ios"))] {
+                    LAPolicy::DeviceOwnerAuthenticationWithCompanion
+                }
+                #[cfg(target_os = "ios")] {
+                    LAPolicy::DeviceOwnerAuthentication
+                }
+            },
             _ => return None,
         };
         Some(Policy { inner: policy })
+    }
+}
+
+impl From<LAError> for Error {
+    fn from(err: LAError) -> Self {
+        match err {
+            LAError::AppCancel => Error::AppCanceled,
+            LAError::AuthenticationFailed => Error::Authentication,
+            LAError::BiometryDisconnected => Error::BiometryDisconnected,
+            LAError::BiometryLockout => Error::Exhausted,
+            // NOTE: This is triggered when access to biometrics is denied.
+            LAError::BiometryNotAvailable => Error::Unavailable,
+            LAError::BiometryNotEnrolled => Error::NotEnrolled,
+            LAError::BiometryNotPaired => Error::NotPaired,
+            // This error shouldn't occur, because we never invalidate the context.
+            LAError::InvalidContext => Error::Unknown,
+            LAError::InvalidDimensions => Error::InvalidDimensions,
+            LAError::NotInteractive => Error::NotInteractive,
+            LAError::PasscodeNotSet => Error::PasscodeNotSet,
+            LAError::SystemCancel => Error::SystemCanceled,
+            LAError::UserCancel => Error::UserCanceled,
+            LAError::UserFallback => Error::UserFallback,
+            LAError::CompanionNotAvailable => Error::CompanionNotAvailable,
+            _ => Error::Unknown,
+        }
     }
 }

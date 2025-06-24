@@ -85,6 +85,18 @@ pub enum Error {
     ///
     /// [Apple]: https://developer.apple.com/documentation/localauthentication/laerror/laerrorpasscodenotset
     PasscodeNotSet,
+    /// The user tapped the fallback button in the authentication dialog (e.g., "Use Password" instead),
+    /// but you selected an authentication policy that does not support password fallback.
+    ///
+    /// If you get this error, you either must handle the fallback yourself or enable the `password` option
+    /// in the policy builder, which will instruct the system to enable a password fallback option
+    /// in the authentication dialog.
+    ///
+    /// This error can occur on:
+    /// - [Apple]
+    ///
+    /// [Apple]: https://developer.apple.com/documentation/localauthentication/laerror/userfallback
+    UserFallback,
 
     // Android-specific errors
     UpdateRequired,

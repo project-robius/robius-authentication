@@ -10,16 +10,18 @@ impl Context {
         Self
     }
 
-    #[cfg(feature = "async")]
-    pub(crate) async fn authenticate(
-        &self,
-        _: Text<'_, '_, '_, '_, '_, '_>,
-        _: &Policy,
-    ) -> Result<()> {
-        Err(Error::Unknown)
-    }
+    // TODO: fix the async authenticate function
+    //
+    // #[cfg(feature = "async")]
+    // pub(crate) async fn authenticate_async(
+    //     &self,
+    //     _: Text<'_, '_, '_, '_, '_, '_>,
+    //     _: &Policy,
+    // ) -> Result<()> {
+    //     Err(Error::Unknown)
+    // }
 
-    pub(crate) fn blocking_authenticate(&self, _: Text, _: &Policy) -> Result<()> {
+    pub(crate) fn authenticate(&self, _: Text, _: &Policy) -> Result<()> {
         Err(Error::Unknown)
     }
 }

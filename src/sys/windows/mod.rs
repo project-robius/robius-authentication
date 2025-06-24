@@ -23,34 +23,46 @@ impl Context {
         Self
     }
 
-    #[cfg(feature = "async")]
-    pub(crate) async fn authenticate(
+    // TODO: fix the async authenticate function
+    //
+    // #[cfg(feature = "async")]
+    // pub(crate) async fn authenticate_async(
+    //     &self,
+    //     message: Text<'_, '_, '_, '_, '_, '_>,
+    //     _: &Policy,
+    // ) -> Result<()> {
+    //     // NOTE: If we don't check availability, `request_verification` will hang.
+    //     let available =
+    //         check_availability()?.await == Ok(UserConsentVerifierAvailability::Available);
+
+    //     if available {
+    //         convert(request_verification(message.windows)?.await?)
+    //     } else {
+    //         fallback::authenticate(message.windows)
+    //     }
+    // }
+
+    pub(crate) fn authenticate<F>(
         &self,
-        message: Text<'_, '_, '_, '_, '_, '_>,
+        message: Text,
         _: &Policy,
-    ) -> Result<()> {
-        // NOTE: If we don't check availability, `request_verification` will hang.
-        let available =
-            check_availability()?.await == Ok(UserConsentVerifierAvailability::Available);
-
-        if available {
-            convert(request_verification(message.windows)?.await?)
-        } else {
-            fallback::authenticate(message.windows)
-        }
-    }
-
-    pub(crate) fn blocking_authenticate(&self, message: Text, _: &Policy) -> Result<()> {
+        callback: F,
+    ) -> Result<()>
+    where
+        F: Fn(Result<()>) + Send + 'static,
+    {
         // NOTE: If we don't check availability, `request_verification` will hang.
         let available =
             check_availability()?.get() == Ok(UserConsentVerifierAvailability::Available);
 
-        if available {
+        let result = if available {
             let verification = request_verification(message.windows)?;
             convert(verification.get()?)
         } else {
             fallback::authenticate(message.windows)
-        }
+        };
+        callback(result);
+        Ok(())
     }
 }
 

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use robius_authentication::{
     AndroidText, BiometricStrength, Context, Policy, PolicyBuilder, Text, WindowsText,
 };
@@ -22,9 +24,19 @@ const TEXT: Text = Text {
 fn main() {
     let context = Context::new(());
 
-    if context.blocking_authenticate(TEXT, &POLICY).is_ok() {
-        println!("Authorized");
-    } else {
-        println!("Unauthorized");
+    let res = context.authenticate(
+        TEXT,
+        &POLICY,
+        |result| match result {
+            Ok(_) => println!("Authentication successful"),
+            Err(e) => println!("Authentication failed: {}", e),
+        },
+    );
+    
+    // Note: if `res` is `Ok`, the authentication did not necessarily succeed. 
+    // The callback will be called with the result of the authentication.
+    // If `res` is `Err`, it indicates an error in the authentication policy or context setup.
+    if let Err(e) = res {
+        eprintln!("Authentication failed: {}", e);
     }
 }

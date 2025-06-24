@@ -8,17 +8,24 @@ Rust abstractions for multi-platform native authentication.
 
 This crate supports:
 * Apple: TouchID, FaceID, and regular username/password on both macOS and iOS.
-* Android: See below for additional steps.
+  * Requires the `NSFaceIDUsageDescription` key in your app's `Info.plist` file.
+* Android: Biometric prompt and regular screen lock. See below for additional steps.
   * Requires the `USE_BIOMETRIC` permission in your app's manifest.
 * Windows: Windows Hello (face recognition, fingerprint, PIN),
 plus winrt-based fallback for username/password.
 * Linux: [`polkit`]-based authentication using the desktop environment's prompt.
   * **Note: Linux support is currently incomplete.**
 
-## Usage on Android
 
-For authentication to work, the following must be added to your app's
-`AndroidManifest.xml`:
+## Usage on iOS
+To use this crate on iOS, you must add the following to your app's `Info.plist`:
+```plist
+<key>NSFaceIDUsageDescription</key>
+<string>Insert your usage description here</string>
+```
+
+## Usage on Android
+To use this crate on Android, you must add the following to your app's `AndroidManifest.xml`:
 ```xml
 <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 ```
@@ -47,8 +54,16 @@ let text = Text {
     windows: WindowsText::new("Title", "Description"),
 };
 
-let auth_result = Context::new(()).blocking_authenticate(text, &policy);
-...
+let callback = |auth_result| {
+    match auth_result {
+        Ok(_)  => log::info!("Authentication success!"),
+        Err(_) => log::error!(Authentication failed!"),
+    }
+};
+
+Context::new(())
+    .authenticate(text, &policy, callback)
+    .expect("Authentication failed");
 ```
 
 For more details about the prompt text, see the `Text` struct,

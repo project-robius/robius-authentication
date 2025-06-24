@@ -1,13 +1,13 @@
 [package]
 name = "robius-authentication"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = [
     "Klim Tsoutsman <klim@tsoutsman.com>",
     "Kevin Boos <kevinaboos@gmail.com>",
     "Project Robius Maintainers",
 ]
-description = "Rust abstractions for multi-platform native authentication: biometrics, fingerprint, password, TouchID, FaceID, Windows Hello, etc."
+description = "Rust abstractions for multi-platform native authentication: biometrics, fingerprint, password, screen lock, TouchID, FaceID, Windows Hello, etc."
 documentation = "https://docs.rs/robius-authentication"
 homepage = "https://robius.rs/"
 keywords = ["robius", "authentication", "biometric", "password", "fingerprint"]
@@ -32,11 +32,12 @@ objc2 = "0.6.1"
 objc2-local-authentication = { version = "0.3.1", default-features = false, features = ["block2", "LAContext", "LAError"] }
 objc2-foundation = { version = "0.3.1", default-features = false, features = ["NSError", "NSString"] }
 
-[target.'cfg(any(target_vendor = "apple", target_os = "android"))'.dependencies.tokio]
-version = "1.35.1"
-default-features = false
-features = ["sync"]
-optional = true
+## disabled for now, sync the `async` feature isn't fully implemented.
+# [target.'cfg(any(target_vendor = "apple", target_os = "android"))'.dependencies.tokio]
+# version = "1.35.1"
+# default-features = false
+# features = ["sync"]
+# optional = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 polkit = "=0.17.0"
@@ -64,8 +65,11 @@ windows = { version = "0.56.0", default-features = false, features = [
 
 [features]
 default = []
+## This feature is not fully implemented yet, do not use it.
+##
 ## Enable this feature to expose non-blocking asynchronous authentication APIs.
-async = ["dep:tokio"]
+#async = ["dep:tokio"]
+
 ## Note: there is a UWP feature still in the code,
 ## but enabling it causes the app to freeze on Windows 11 Pro.
 ## Everything still works correctly without the UWP feature.

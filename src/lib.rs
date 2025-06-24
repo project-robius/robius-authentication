@@ -174,8 +174,10 @@ pub enum BiometricStrength {
 /// A builder for conveniently defining a policy.
 ///
 /// It is **highly recommended** to use the [`Self::new()`] (default) value
-/// to create a policy, as each platform behave differently
+/// to create a policy with all options enabled, because each platform acts differently
 /// when being requested to enable/disable various authentication methods.
+/// Enabling all options is the safest way to ensure that the authentication prompt
+/// will be displayed correctly on all platforms.
 #[derive(Debug)]
 pub struct PolicyBuilder {
     inner: sys::PolicyBuilder,

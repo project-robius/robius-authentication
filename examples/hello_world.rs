@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use robius_authentication::{
     AndroidText, BiometricStrength, Context, Policy, PolicyBuilder, Text, WindowsText,
 };
@@ -29,7 +27,7 @@ fn main() {
         &POLICY,
         |result| match result {
             Ok(_) => println!("Authentication successful"),
-            Err(e) => println!("Authentication failed: {}", e),
+            Err(e) => println!("Authentication failed: {:?}", e),
         },
     );
     
@@ -37,6 +35,6 @@ fn main() {
     // The callback will be called with the result of the authentication.
     // If `res` is `Err`, it indicates an error in the authentication policy or context setup.
     if let Err(e) = res {
-        eprintln!("Authentication failed: {}", e);
+        eprintln!("Authentication failed: {:?}", e);
     }
 }

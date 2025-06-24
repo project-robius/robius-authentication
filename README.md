@@ -19,7 +19,7 @@ plus winrt-based fallback for username/password.
 
 ## Usage on iOS
 To use this crate on iOS, you must add the following to your app's `Info.plist`:
-```plist
+```xml
 <key>NSFaceIDUsageDescription</key>
 <string>Insert your usage description here</string>
 ```
@@ -32,7 +32,7 @@ To use this crate on Android, you must add the following to your app's `AndroidM
 
 ## Example
 
-```no_run
+```rust
 use robius_authentication::{
     AndroidText, BiometricStrength, Context, Policy, PolicyBuilder, Text, WindowsText,
 };

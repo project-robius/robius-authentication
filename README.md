@@ -1,3 +1,5 @@
+# Archived: this has moved to https://github.com/project-robius/robius
+
 # `robius-authentication`
 
 [![Latest Version](https://img.shields.io/crates/v/robius-authentication.svg)](https://crates.io/crates/robius_authentication)
